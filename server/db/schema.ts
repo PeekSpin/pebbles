@@ -116,6 +116,7 @@ export const orderItems = pgTable(
       .references(() => products.id),
     productName: varchar("product_name", { length: 255 }).notNull(),
     sku: varchar("sku", { length: 100 }).notNull(),
+    size: varchar("size", { length: 20 }).notNull(),
     quantity: integer("quantity").notNull(),
     unitPrice: numeric("unit_price", { precision: 12, scale: 2 }).notNull()
   },

@@ -1,9 +1,9 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lte, sql, sum } from "drizzle-orm";
 
 import { db } from "../db";
-import { productImages, products, productVariants } from "../db/schema";
+import { orderAddresses, orderItems, orders, payments, productImages, products, productVariants, users } from "../db/schema";
 import { getProductImageUrl } from "../storage";
 
 export type ProductInput = {
@@ -74,9 +74,15 @@ export async function findStoreProduct(id: string) {
   return product ? withImageUrls(product) : null;
 }
 
-export async function listProducts() {
-  const productRows = await db.select().from(products).orderBy(asc(products.createdAt));
-  return Promise.all(productRows.map(async (product) => {
+export async function listProducts(options: { page?: number; pageSize?: number } = {}) {
+  const pageSize = options.pageSize ?? 10;
+  const page = Math.max(1, options.page ?? 1);
+  const [productRows, [{ total }]] = await Promise.all([
+    db.select().from(products).orderBy(desc(products.createdAt)).limit(pageSize).offset((page - 1) * pageSize),
+    db.select({ total: count() }).from(products)
+  ]);
+  return {
+    products: await Promise.all(productRows.map(async (product) => {
     const [image] = await db
       .select()
       .from(productImages)
@@ -88,7 +94,12 @@ export async function listProducts() {
       variants: await db.select().from(productVariants).where(eq(productVariants.productId, product.id)).orderBy(asc(productVariants.size)),
       primaryImageUrl: image ? await getProductImageUrl(image.imageUrl) : null
     };
-  }));
+    })),
+    total: Number(total),
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(Number(total) / pageSize))
+  };
 }
 
 export async function listProductCategories() {
@@ -155,4 +166,202 @@ export async function updateProductVariants(id: string, variants: ProductVariant
 export async function deleteProduct(id: string) {
   const [product] = await db.delete(products).where(eq(products.id, id)).returning();
   return product ?? null;
+}
+
+export async function createPendingOrder(input: {
+  userId: string;
+  productId: string;
+  productName: string;
+  variantId: string;
+  size: string;
+  sku: string;
+  quantity: number;
+  unitPrice: string;
+  shippingAmount: string;
+  address: { recipientName: string; phone: string; addressLine1: string; city: string; pincode: string };
+}) {
+  const subtotal = (Number(input.unitPrice) * input.quantity).toFixed(2);
+  const totalAmount = (Number(subtotal) + Number(input.shippingAmount)).toFixed(2);
+  const [order] = await db.insert(orders).values({
+    userId: input.userId,
+    subtotal,
+    shippingAmount: input.shippingAmount,
+    totalAmount
+  }).returning();
+  await db.insert(orderItems).values({
+    orderId: order.id,
+    productId: input.productId,
+    productName: input.productName,
+    size: input.size,
+    sku: input.sku,
+    quantity: input.quantity,
+    unitPrice: input.unitPrice
+  });
+  await db.insert(orderAddresses).values({
+    orderId: order.id,
+    recipientName: input.address.recipientName,
+    phone: input.address.phone,
+    addressLine1: input.address.addressLine1,
+    city: input.address.city,
+    pincode: input.address.pincode
+  });
+  return order;
+}
+
+export async function findOrderForUser(orderId: string, userId: string) {
+  const [order] = await db.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.userId, userId))).limit(1);
+  return order ?? null;
+}
+
+export async function confirmOrderPayment(input: {
+  orderId: string;
+  paymentId: string;
+  amount: string;
+}) {
+  const [existingOrder] = await db.select().from(orders).where(eq(orders.id, input.orderId)).limit(1);
+  if (!existingOrder) throw new Error("Order not found");
+  if (existingOrder.status === "confirmed") return { payment: null, order: existingOrder };
+  const [existingPayment] = await db.select().from(payments).where(eq(payments.orderId, input.orderId)).limit(1);
+  if (existingPayment) {
+    const [confirmedOrder] = await db.update(orders)
+      .set({ status: "confirmed", updatedAt: new Date() })
+      .where(eq(orders.id, input.orderId))
+      .returning();
+    return { payment: existingPayment, order: confirmedOrder };
+  }
+
+  const [item] = await db.select().from(orderItems).where(eq(orderItems.orderId, input.orderId)).limit(1);
+  if (!item) throw new Error("Order items not found");
+  const [updatedVariant] = await db.update(productVariants)
+    .set({ stockQuantity: sql`${productVariants.stockQuantity} - ${item.quantity}` })
+    .where(and(
+      eq(productVariants.productId, item.productId),
+      eq(productVariants.sku, item.sku),
+      sql`${productVariants.stockQuantity} >= ${item.quantity}`
+    ))
+    .returning();
+  if (!updatedVariant) throw new Error("Insufficient stock for selected size");
+
+  const [payment] = await db.insert(payments).values({
+    orderId: input.orderId,
+    provider: "razorpay",
+    providerPaymentId: input.paymentId,
+    amount: input.amount,
+    status: "succeeded"
+  }).returning();
+  const [order] = await db.update(orders)
+    .set({ status: "confirmed", updatedAt: new Date() })
+    .where(eq(orders.id, input.orderId))
+    .returning();
+  return { payment, order };
+}
+
+export async function listUserOrders(userId: string, options: { page?: number; pageSize?: number } = {}) {
+  const pageSize = options.pageSize ?? 10;
+  const page = Math.max(1, options.page ?? 1);
+  const [rows, [{ total }]] = await Promise.all([
+    db.select().from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt)).limit(pageSize).offset((page - 1) * pageSize),
+    db.select({ total: count() }).from(orders).where(eq(orders.userId, userId))
+  ]);
+  return {
+    orders: await Promise.all(rows.map(async (order) => ({
+    ...order,
+    items: await db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
+    }))),
+    total: Number(total),
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(Number(total) / pageSize))
+  };
+}
+
+export async function findUserOrder(orderId: string, userId: string) {
+  const order = await findOrderForUser(orderId, userId);
+  if (!order) return null;
+  const [items] = await Promise.all([
+    db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
+  ]);
+  const [address] = await db.select().from(orderAddresses).where(eq(orderAddresses.orderId, order.id)).limit(1);
+  return { ...order, items, address: address ?? null };
+}
+
+export async function listAllOrders() {
+  const rows = await db.select().from(orders).orderBy(desc(orders.createdAt));
+  return Promise.all(rows.map(async (order) => ({
+    ...order,
+    items: await db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
+  })));
+}
+
+export type AdminOrderStatus = "confirmed" | "shipped" | "delivered" | "pending_payment" | "cancelled";
+
+export async function listAdminOrders(filters: { status?: AdminOrderStatus; from?: string; to?: string; page?: number; pageSize?: number } = {}) {
+  const pageSize = filters.pageSize ?? 10;
+  const page = Math.max(1, filters.page ?? 1);
+  const conditions = [];
+  if (filters.status) conditions.push(eq(orders.status, filters.status));
+  if (filters.from) conditions.push(gte(orders.createdAt, new Date(`${filters.from}T00:00:00.000Z`)));
+  if (filters.to) conditions.push(lte(orders.createdAt, new Date(`${filters.to}T23:59:59.999Z`)));
+  const where = conditions.length ? and(...conditions) : undefined;
+  const [rows, [{ total }]] = await Promise.all([
+    db.select().from(orders).where(where).orderBy(desc(orders.createdAt)).limit(pageSize).offset((page - 1) * pageSize),
+    db.select({ total: count() }).from(orders).where(where)
+  ]);
+  return {
+    orders: await Promise.all(rows.map(async (order) => ({
+    ...order,
+    items: await db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
+    }))),
+    total: Number(total),
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(Number(total) / pageSize))
+  };
+}
+
+export async function findAdminOrder(orderId: string) {
+  const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+  if (!order) return null;
+  const [items, address, user] = await Promise.all([
+    db.select().from(orderItems).where(eq(orderItems.orderId, order.id)),
+    db.select().from(orderAddresses).where(eq(orderAddresses.orderId, order.id)).limit(1),
+    db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, order.userId)).limit(1)
+  ]);
+  return { ...order, items, address: address[0] ?? null, customer: user[0] ?? null };
+}
+
+export async function updateOrderStatus(orderId: string, status: AdminOrderStatus) {
+  const [order] = await db.update(orders)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(orders.id, orderId))
+    .returning();
+  return order ?? null;
+}
+
+export async function getAdminDashboard() {
+  const [sales, orderCount, productCount, customerCount, lowStockCount] = await Promise.all([
+    db.select({ total: sum(orders.totalAmount) }).from(orders).where(inArray(orders.status, ["confirmed", "shipped", "delivered"])),
+    db.select({ total: count() }).from(orders),
+    db.select({ total: count() }).from(products),
+    db.select({ total: count() }).from(users).where(and(eq(users.role, "customer"), isNull(users.deletedAt))),
+    db.select({ total: count() }).from(productVariants).where(sql`${productVariants.stockQuantity} <= 5`)
+  ]);
+  const recentOrders = await listAdminOrders({ page: 1, pageSize: 5 });
+  const topProducts = await db
+    .select({ name: orderItems.productName, sold: sum(orderItems.quantity) })
+    .from(orderItems)
+    .innerJoin(orders, eq(orderItems.orderId, orders.id))
+    .where(inArray(orders.status, ["confirmed", "shipped", "delivered"]))
+    .groupBy(orderItems.productName)
+    .orderBy(desc(sum(orderItems.quantity)))
+    .limit(3);
+  return {
+    totalSales: Number(sales[0]?.total ?? 0),
+    orderCount: Number(orderCount[0]?.total ?? 0),
+    productCount: Number(productCount[0]?.total ?? 0),
+    customerCount: Number(customerCount[0]?.total ?? 0),
+    lowStockCount: Number(lowStockCount[0]?.total ?? 0),
+    recentOrders: recentOrders.orders,
+    topProducts: topProducts.map((product) => ({ name: product.name, sold: Number(product.sold ?? 0) }))
+  };
 }

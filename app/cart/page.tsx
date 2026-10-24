@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { money, products, setCartQuantity, SiteFooter, SiteHeader } from "../components/store";
+import { products, setCartQuantity, SiteFooter, SiteHeader } from "../components/store";
+import { money } from "../lib/format";
 import { useEffect, useState } from "react";
 export default function CartPage() {
   const [quantity, setQuantity] = useState(1);

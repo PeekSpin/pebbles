@@ -56,10 +56,11 @@ async function uploadImages(form: FormData, productId: string) {
   return images;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await requireVendor();
-    return NextResponse.json(await listProducts());
+    const page = Math.max(1, Number(new URL(request.url).searchParams.get("page")) || 1);
+    return NextResponse.json(await listProducts({ page }));
   } catch (error) {
     if (error instanceof Error && error.message === "Authentication required") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (error instanceof Error && error.message === "Vendor access required") return NextResponse.json({ error: "Forbidden" }, { status: 403 });

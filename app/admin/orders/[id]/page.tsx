@@ -1,2 +1,15 @@
-import { AdminShell, Field } from "../../../components/store";
-export default function AdminOrderDetailsPage({ params }: { params: { id: string } }) { return <AdminShell><div className="admin-content narrow-admin"><p className="eyebrow">Order details</p><h1>#{params.id}</h1><div className="admin-order-card"><div><span>Customer</span><b>Ananya Mehta</b><small>ananya@example.com</small></div><div><span>Total</span><b>₹3,290</b><small>Cash on delivery</small></div><div><span>Current status</span><b className="status processing">Processing</b></div></div><form className="admin-form"><h2>Shipment information</h2><label className="field"><span>Order status</span><select><option>Pending</option><option selected>Processing</option><option>Shipped</option><option>Delivered</option><option>Cancelled</option></select></label><Field label="Courier name" placeholder="Delhivery" /><Field label="Tracking ID" placeholder="DLM123456789" /><Field label="Tracking URL" type="url" placeholder="https://..." /><Field label="Dispatch date" type="date" /><button className="admin-button" type="submit">Save shipment details →</button></form></div></AdminShell>; }
+import Link from "next/link";
+
+import { AdminShell } from "../../../components/store";
+import { OrderStatusForm } from "../OrderStatusForm";
+import { findAdminOrder } from "../../../../server/repositories/product.repository";
+import { requireVendor } from "../../../../server/services/vendor.service";
+
+export const dynamic = "force-dynamic";
+
+export default async function AdminOrderDetailsPage({ params }: { params: { id: string } }) {
+  await requireVendor();
+  const order = await findAdminOrder(params.id);
+  if (!order) return <AdminShell><div className="admin-content"><p className="empty-state">Order not found.</p></div></AdminShell>;
+  return <AdminShell><div className="admin-content order-detail-layout"><Link href="/admin/orders" className="back-link">← Back to all orders</Link><p className="eyebrow">Order details</p><h1>#{order.id.slice(0, 8).toUpperCase()}</h1><div className="admin-order-card"><div><span>Customer</span><b>{order.customer?.name ?? "Customer"}</b><small>{order.customer?.email ?? "No email available"}</small></div><div><span>Total</span><b>₹{Number(order.totalAmount).toLocaleString("en-IN")}</b><small>Placed {new Date(order.createdAt).toLocaleString("en-IN")}</small></div><div><span>Current status</span><b className={`status ${order.status}`}>{order.status.replace("_", " ")}</b></div></div><div className="order-detail-grid"><div className="admin-detail-panel"><h2>Items</h2>{order.items.map((item) => <p key={item.id}><b>{item.productName}</b>  <br />Size {item.size} · SKU {item.sku} · Quantity {item.quantity}<br />₹{(Number(item.unitPrice) * item.quantity).toLocaleString("en-IN")}</p>)}</div><div className="admin-detail-panel"><h2>Delivery address</h2><p>{order.address?.recipientName}<br />{order.address?.addressLine1}<br />{order.address?.city}, {order.address?.pincode}<br />Phone: {order.address?.phone}</p></div></div><OrderStatusForm orderId={order.id} initialStatus={order.status} /></div></AdminShell>;
+}

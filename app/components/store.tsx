@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useAuth, useClerk } from "@clerk/nextjs";
 import { FormEvent, ReactNode, useCallback, useEffect, useState } from "react";
+import { money } from "../lib/format";
 
 export type Product = {
   id: string;
@@ -17,6 +18,14 @@ export type Product = {
   badge?: string;
 };
 
+export type HomeOrder = {
+  id: string;
+  productName: string;
+  totalAmount: number;
+  status: string;
+  createdAt: string;
+};
+
 export const products: Product[] = [
   { id: "indigo-cotton-kurta", name: "Indigo Cotton Kurta", category: "Kurtas", price: 2490, image: "https://images.pexels.com/photos/1926769/pexels-photo-1926769.jpeg?auto=compress&cs=tinysrgb&w=900", description: "A relaxed, everyday kurta in breathable cotton with a hand-finished neckline." },
   { id: "marigold-anarkali-kurta", name: "Marigold Anarkali Kurta", category: "Kurtas", price: 3290, image: "https://images.pexels.com/photos/994523/pexels-photo-994523.jpeg?auto=compress&cs=tinysrgb&w=900", description: "A softly flared silhouette in a warm marigold weave, made for slow celebrations.", badge: "Bestseller" },
@@ -28,9 +37,18 @@ export const products: Product[] = [
 
 const productCategories: Product["category"][] = ["Kurtas", "Sarees", "Tops"];
 
-export const money = (value: number) => `₹${value.toLocaleString("en-IN")}`;
-
 const cartQuantityKey = "pebbles-cart-quantity";
+const cartItemKey = "pebbles-cart-item";
+
+export type CartItem = {
+  productId: string;
+  variantId: string;
+  name: string;
+  size: string;
+  sku: string;
+  price: number;
+  quantity: number;
+};
 
 export function useCartCount() {
   const [count, setCount] = useState(0);
@@ -59,6 +77,11 @@ export function setCartQuantity(quantity: number) {
   if (quantity > 0) window.localStorage.setItem(cartQuantityKey, String(quantity));
   else window.localStorage.removeItem(cartQuantityKey);
   window.dispatchEvent(new Event("pebbles-cart-updated"));
+}
+
+export function setCartItem(item: CartItem) {
+  window.localStorage.setItem(cartItemKey, JSON.stringify(item));
+  setCartQuantity(item.quantity);
 }
 
 export function CartIcon() {
@@ -137,7 +160,7 @@ export function ProductCard({ product }: { product: Product }) {
   return <article className="product-card"><Link href={`/products/${product.id}`} className="product-image product-image-large">{product.badge && <span className="badge">{product.badge}</span>}<button className="heart" aria-label={`Save ${product.name}`} onClick={(event) => event.preventDefault()}>♡</button>{product.image && <img src={product.image} alt={product.name} />}</Link><div className="product-info"><div><p className="eyebrow">{product.category}</p><Link href={`/products/${product.id}`}><h3>{product.name}</h3></Link></div><strong>{money(product.price)}</strong></div></article>;
 }
 
-export function HomePage({ products: latestProducts }: { products: Product[] }) {
+export function HomePage({ products: latestProducts, recentOrders = [] }: { products: Product[]; recentOrders?: HomeOrder[] }) {
   const [activeSlide, setActiveSlide] = useState(0);
   const carouselSlides = [
     { src: "/images/carousel-image-0.png", alt: "The Chanderi Blue Collection" },
@@ -148,7 +171,7 @@ export function HomePage({ products: latestProducts }: { products: Product[] }) 
     const timer = window.setInterval(() => setActiveSlide((slide) => (slide + 1) % carouselSlides.length), 5000);
     return () => window.clearInterval(timer);
   }, [carouselSlides.length]);
-  return <><SiteHeader /><section className="hero-carousel" aria-label="Featured collection">{carouselSlides.map((slide, index) => <Image className={`hero-carousel-image ${index === activeSlide ? "active" : ""}`} key={slide.src} src={slide.src} alt={slide.alt} width={1744} height={608} priority={index === 0} />)}</section><section className="collection section-pad" id="shop"><div className="section-heading"><div><p className="eyebrow">Shop the edit</p><h2>Made for <em>every day</em></h2></div><Link className="text-link" href="/products">View all products</Link></div>{latestProducts.length ? <div className="product-grid">{latestProducts.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <p className="empty-state">Products are coming soon.</p>}</section><section className="categories section-pad" id="collections"><div className="section-heading"><div><p className="eyebrow">Find your kind</p><h2>Explore our <em>world</em></h2></div></div><div className="category-grid"><Link className="category category-large" href="/products?category=Kurtas"><Image src="https://images.unsplash.com/photo-1523381294911-8d3cead13475?auto=format&fit=crop&w=1100&q=85" alt="Kurtas collection" fill sizes="50vw" /><span>Kurtas</span></Link><Link className="category" href="/products?category=Sarees"><Image src="https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=900&q=85" alt="Sarees collection" fill sizes="25vw" /><span>Sarees</span></Link><Link className="category" href="/products?category=Tops"><Image src="https://images.unsplash.com/photo-1485968579580-b6d095142e6e?auto=format&fit=crop&w=900&q=85" alt="Tops collection" fill sizes="25vw" /><span>Tops</span></Link></div></section><section className="manifesto"><p className="eyebrow">The Pebbles promise</p><h2>Less, but <em>better.</em></h2><div className="promise-grid"><div><span>01</span><h3>Made to last</h3><p>Thoughtful materials and quiet details that get better with time.</p></div><div><span>02</span><h3>Mindful by default</h3><p>Small batches, responsible choices and no unnecessary extras.</p></div><div><span>03</span><h3>For real life</h3><p>Useful, tactile and made for the beautiful mess of everyday.</p></div></div></section><SiteFooter /></>;
+  return <><SiteHeader /><section className="hero-carousel" aria-label="Featured collection">{carouselSlides.map((slide, index) => <Image className={`hero-carousel-image ${index === activeSlide ? "active" : ""}`} key={slide.src} src={slide.src} alt={slide.alt} width={1744} height={608} priority={index === 0} />)}</section>{recentOrders.length > 0 && <section className="home-orders section-pad"><div className="section-heading"><div><p className="eyebrow">Your account</p><h2>My <em>orders.</em></h2></div><Link className="text-link" href="/orders">View all orders</Link></div><div className="home-order-list">{recentOrders.map((order) => <Link href={`/orders/${order.id}`} key={order.id}><span>#{order.id.slice(0, 8).toUpperCase()}</span><strong>{order.productName}</strong><span>{money(order.totalAmount)}</span><b className={`status ${order.status}`}>{order.status.replace("_", " ")}</b><span>→</span></Link>)}</div></section>}<section className="collection section-pad" id="shop"><div className="section-heading"><div><p className="eyebrow">Shop the edit</p><h2>Made for <em>every day</em></h2></div><Link className="text-link" href="/products">View all products</Link></div>{latestProducts.length ? <div className="product-grid">{latestProducts.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <p className="empty-state">Products are coming soon.</p>}</section><section className="categories section-pad" id="collections"><div className="section-heading"><div><p className="eyebrow">Find your kind</p><h2>Explore our <em>world</em></h2></div></div><div className="category-grid"><Link className="category category-large" href="/products?category=Kurtas"><Image src="https://images.unsplash.com/photo-1523381294911-8d3cead13475?auto=format&fit=crop&w=1100&q=85" alt="Kurtas collection" fill sizes="50vw" /><span>Kurtas</span></Link><Link className="category" href="/products?category=Sarees"><Image src="https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=900&q=85" alt="Sarees collection" fill sizes="25vw" /><span>Sarees</span></Link><Link className="category" href="/products?category=Tops"><Image src="https://images.unsplash.com/photo-1485968579580-b6d095142e6e?auto=format&fit=crop&w=900&q=85" alt="Tops collection" fill sizes="25vw" /><span>Tops</span></Link></div></section><section className="manifesto"><p className="eyebrow">The Pebbles promise</p><h2>Less, but <em>better.</em></h2><div className="promise-grid"><div><span>01</span><h3>Made to last</h3><p>Thoughtful materials and quiet details that get better with time.</p></div><div><span>02</span><h3>Mindful by default</h3><p>Small batches, responsible choices and no unnecessary extras.</p></div><div><span>03</span><h3>For real life</h3><p>Useful, tactile and made for the beautiful mess of everyday.</p></div></div></section><SiteFooter /></>;
 }
 
 export function PageIntro({ eyebrow, title, description }: { eyebrow: string; title: ReactNode; description?: string }) {
@@ -171,16 +194,25 @@ export function ProductDetail({ product }: { product: Product }) {
   const [added, setAdded] = useState(false);
   const variants = product.variants ?? [];
   const [selectedSize, setSelectedSize] = useState(variants[0]?.size ?? "");
+  const selectedVariant = variants.find((variant) => variant.size === selectedSize);
   const requireAuth = useRequireAuth();
   const addProductToCart = async () => {
     if (!(await requireAuth())) return;
     if (!selectedSize || !variants.find((variant) => variant.size === selectedSize && variant.stockQuantity > 0)) return;
-    addToCart();
+    setCartItem({
+      productId: product.id,
+      variantId: selectedVariant?.id ?? "",
+      name: product.name,
+      size: selectedSize,
+      sku: selectedVariant?.sku ?? "",
+      price: product.price,
+      quantity: 1
+    });
     setAdded(true);
   };
   const gallery = product.images?.length ? product.images : [{ imageUrl: product.image, altText: product.name, sortOrder: 0 }];
   const [selectedImage, setSelectedImage] = useState(gallery[0].imageUrl);
-  return <StoreShell><div className="detail-page"><div className="detail-gallery"><div className="detail-image"><img src={selectedImage} alt={product.name} /></div><div className="detail-thumbnails">{gallery.map((image, index) => <button type="button" className={selectedImage === image.imageUrl ? "active" : ""} key={image.imageUrl} onClick={() => setSelectedImage(image.imageUrl)}><img src={image.imageUrl} alt={image.altText ?? `${product.name} image ${index + 1}`} /></button>)}</div></div><div className="detail-copy"><p className="eyebrow">{product.category}</p><h1>{product.name}</h1><p className="detail-price">{money(product.price)}</p><p className="detail-description">{product.description}</p><div className="size-label">Select size <span>Size guide</span></div><div className="size-options">{variants.map((variant) => <button type="button" key={variant.size} className={selectedSize === variant.size ? "active" : ""} disabled={variant.stockQuantity === 0} onClick={() => setSelectedSize(variant.size)}>{variant.size}<small>{variant.stockQuantity > 0 ? `${variant.stockQuantity} available` : "Sold out"}</small></button>)}</div>{!variants.length && <p className="form-note">Sizes are currently unavailable.</p>}<button className="button dark-button add-button" disabled={!selectedSize || !variants.find((variant) => variant.size === selectedSize && variant.stockQuantity > 0)} onClick={addProductToCart}>{added ? "Added to cart ✓" : "Add to cart"} <span>↗</span></button><div className="detail-notes"><p><b>Material</b> 100% cotton, naturally dyed</p><p><b>Care</b> Gentle machine wash, dry in shade</p><p><b>Delivery</b> Ships within 2–4 business days</p></div></div></div></StoreShell>;
+  return <StoreShell><div className="detail-page"><div className="detail-gallery"><div className="detail-image"><img src={selectedImage} alt={product.name} /></div><div className="detail-thumbnails">{gallery.map((image, index) => <button type="button" className={selectedImage === image.imageUrl ? "active" : ""} key={image.imageUrl} onClick={() => setSelectedImage(image.imageUrl)}><img src={image.imageUrl} alt={image.altText ?? `${product.name} image ${index + 1}`} /></button>)}</div></div><div className="detail-copy"><p className="eyebrow">{product.category}</p><h1>{product.name}</h1><p className="detail-price">{money(product.price)}</p><p className="detail-description">{product.description}</p><div className="size-label">Select size <span>Size guide</span></div><div className="size-options" role="radiogroup" aria-label="Available sizes">{variants.map((variant) => <button type="button" role="radio" aria-checked={selectedSize === variant.size} aria-label={`${variant.size}, ${variant.stockQuantity > 0 ? `${variant.stockQuantity} available` : "sold out"}`} key={variant.size} className={`${selectedSize === variant.size ? "active" : ""} ${variant.stockQuantity === 0 ? "sold-out" : ""}`} disabled={variant.stockQuantity === 0} onClick={() => setSelectedSize(variant.size)}><strong>{variant.size}</strong><small>{variant.stockQuantity > 0 ? `${variant.stockQuantity} left` : "Sold out"}</small></button>)}</div>{!variants.length && <p className="form-note">Sizes are currently unavailable.</p>}<button className="button dark-button add-button" disabled={!selectedSize || !variants.find((variant) => variant.size === selectedSize && variant.stockQuantity > 0)} onClick={addProductToCart}>{added ? "Added to cart ✓" : "Add to cart"} <span>↗</span></button><div className="detail-notes"><p><b>Material</b> 100% cotton, naturally dyed</p><p><b>Care</b> Gentle machine wash, dry in shade</p><p><b>Delivery</b> Ships within 2–4 business days</p></div></div></div></StoreShell>;
 }
 
 export function SimpleForm({ title, button, children, note }: { title: ReactNode; button: string; children: ReactNode; note?: string }) {
@@ -194,7 +226,7 @@ export function Field({ label, name, type = "text", placeholder, defaultValue }:
 }
 
 export function AdminShell({ children }: { children: ReactNode }) {
-  return <div className="admin-layout"><aside className="admin-sidebar"><Link href="/admin" className="admin-brand"><Image src="/images/pebbles-pebbles-wordmark-white-transparent.svg" alt="Pebbles Studio" width={150} height={53} /></Link><nav><p>Overview</p><Link href="/admin">Dashboard</Link><p>Manage</p><Link href="/admin/products">Products</Link><Link href="/admin/categories">Categories</Link><Link href="/admin/orders">Orders</Link><Link href="/admin/customers">Customers</Link></nav><Link href="/" className="back-store">← View storefront</Link></aside><section className="admin-main"><header className="admin-header"><span>Tuesday, 20 October 2026</span><Link href="/admin/login">Admin account ↗</Link></header>{children}</section></div>;
+  return <div className="admin-layout"><aside className="admin-sidebar"><Link href="/admin" className="admin-brand"><Image src="/images/pebbles-pebbles-wordmark-white-transparent.svg" alt="Pebbles Studio" width={150} height={53} /></Link><nav><p>Overview</p><Link href="/admin">Dashboard</Link><p>Manage</p><Link href="/admin/products">Products</Link><Link href="/admin/categories">Categories</Link><Link href="/admin/orders">Orders</Link><Link href="/admin/customers">Customers</Link></nav><Link href="/" className="back-store">← View storefront</Link></aside><section className="admin-main"><header className="admin-header"><span>Tuesday, 20 October 2026</span><Link href="/login">Admin account ↗</Link></header>{children}</section></div>;
 }
 
 export function AdminTable({ type }: { type: "products" | "orders" | "customers" }) {
@@ -214,16 +246,22 @@ type AdminProduct = {
   primaryImageUrl?: string | null;
 };
 
-export function ProductAdminTable() {
+export function ProductAdminTable({ page = 1 }: { page?: number }) {
   const [products, setProducts] = useState<AdminProduct[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch("/api/admin/products").then(async (response) => {
+    setLoading(true);
+    setError("");
+    fetch(`/api/admin/products?page=${page}`).then(async (response) => {
       if (!response.ok) throw new Error("Unable to load products");
-      setProducts(await response.json());
-    }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to load products"));
-  }, []);
+      const result = await response.json() as { products: AdminProduct[]; totalPages: number };
+      setProducts(result.products);
+      setTotalPages(result.totalPages);
+    }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to load products")).finally(() => setLoading(false));
+  }, [page]);
 
   const remove = async (id: string) => {
     if (!window.confirm("Delete this product?")) return;
@@ -235,7 +273,7 @@ export function ProductAdminTable() {
     setProducts((current) => current.filter((product) => product.id !== id));
   };
 
-  return <div className="admin-table-wrap">{error && <p className="form-error">{error}</p>}<table><thead><tr><th>Product</th><th>SKU</th><th>Category</th><th>Price</th><th>Stock by size</th><th>Action</th></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td><div className="admin-product-cell">{product.primaryImageUrl ? <img className="admin-product-thumb" src={product.primaryImageUrl} alt="" /> : <span className="admin-product-thumb admin-product-thumb-empty">—</span>}<span>{product.name}</span></div></td><td>{product.sku}</td><td>{product.category}</td><td>{money(Number(product.price))}</td><td>{product.variants.map((variant) => `${variant.size}: ${variant.stockQuantity}`).join(" · ") || "—"}</td><td><div className="admin-product-actions"><Link className="table-action table-action-edit" href={`/admin/products/${product.id}/edit`}>Edit</Link><button className="table-action table-action-delete" type="button" onClick={() => void remove(product.id)}>Delete</button></div></td></tr>)}</tbody></table>{!products.length && !error && <p className="empty-state">No products yet.</p>}</div>;
+  return <div className="admin-table-wrap">{error && <p className="form-error">{error}</p>}{loading ? <div className="table-loading" role="status" aria-live="polite"><div className="loading-mark" aria-hidden="true"><span /><span /><span /></div><p>Loading products...</p></div> : <><table><thead><tr><th>Product</th><th>SKU</th><th>Category</th><th>Price</th><th>Stock by size</th><th>Action</th></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td><div className="admin-product-cell">{product.primaryImageUrl ? <img className="admin-product-thumb" src={product.primaryImageUrl} alt="" /> : <span className="admin-product-thumb admin-product-thumb-empty">—</span>}<span>{product.name}</span></div></td><td>{product.sku}</td><td>{product.category}</td><td>{money(Number(product.price))}</td><td>{product.variants.map((variant) => `${variant.size}: ${variant.stockQuantity}`).join(" · ") || "—"}</td><td><div className="admin-product-actions"><Link className="table-action table-action-edit" href={`/admin/products/${product.id}/edit`}>Edit</Link><button className="table-action table-action-delete" type="button" onClick={() => void remove(product.id)}>Delete</button></div></td></tr>)}</tbody></table>{!products.length && <p className="empty-state">No products yet.</p>}{products.length > 0 && totalPages > 1 && <nav className="pagination" aria-label="Product pages"><Link className={page === 1 ? "disabled" : ""} href={`/admin/products?page=${Math.max(1, page - 1)}`}>Previous</Link>{Array.from({ length: totalPages }, (_, index) => index + 1).map((number) => <Link className={number === page ? "active" : ""} href={`/admin/products?page=${number}`} key={number}>{number}</Link>)}<Link className={page === totalPages ? "disabled" : ""} href={`/admin/products?page=${Math.min(totalPages, page + 1)}`}>Next</Link></nav>}</>}</div>;
 }
 
 export function ProductForm({ title, button, product }: { title: string; button: string; product?: AdminProduct }) {

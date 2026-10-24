@@ -29,6 +29,13 @@
       "when": 1792613000000,
       "tag": "0003_product_variants",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792614000000,
+      "tag": "0004_order_item_size",
+      "breakpoints": true
     }
   ]
 }
