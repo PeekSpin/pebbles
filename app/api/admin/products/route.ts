@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { createProduct, listProducts } from "../../../../server/repositories/product.repository";
+import { createProduct, listProducts, ProductVariantInput } from "../../../../server/repositories/product.repository";
 import { uploadProductImage } from "../../../../server/storage";
 import { requireVendor } from "../../../../server/services/vendor.service";
 
@@ -14,18 +14,33 @@ function text(form: FormData, key: string) {
 
 function productInput(form: FormData) {
   const price = text(form, "price");
-  const stockQuantity = Number(text(form, "stockQuantity"));
-  if (!/^\d+(\.\d{1,2})?$/.test(price) || !Number.isInteger(stockQuantity) || stockQuantity < 0) {
-    throw new Error("Invalid price or stock quantity");
+  if (!/^\d+(\.\d{1,2})?$/.test(price)) {
+    throw new Error("Invalid price");
   }
   return {
     sku: text(form, "sku"),
     name: text(form, "name"),
     description: text(form, "description"),
     category: text(form, "category"),
-    price,
-    stockQuantity
+    price
   };
+}
+
+function variantsInput(form: FormData): ProductVariantInput[] {
+  const raw = String(form.get("variants") ?? "[]");
+  const variants = JSON.parse(raw) as unknown;
+  if (!Array.isArray(variants)) throw new Error("Invalid product variants");
+  const result = variants.map((variant) => {
+    if (!variant || typeof variant !== "object") throw new Error("Invalid product variants");
+    const value = variant as Record<string, unknown>;
+    const size = typeof value.size === "string" ? value.size.trim() : "";
+    const sku = typeof value.sku === "string" ? value.sku.trim() : "";
+    const stockQuantity = value.stockQuantity;
+    if (!size || !sku || !Number.isInteger(stockQuantity) || Number(stockQuantity) < 0) throw new Error("Invalid product variants");
+    return { size, sku, stockQuantity: Number(stockQuantity) };
+  });
+  if (new Set(result.map((variant) => variant.size)).size !== result.length) throw new Error("Each size can only be added once");
+  return result;
 }
 
 async function uploadImages(form: FormData, productId: string) {
@@ -57,9 +72,10 @@ export async function POST(request: Request) {
     await requireVendor();
     const form = await request.formData();
     const input = productInput(form);
+    const variants = variantsInput(form);
     const temporaryId = randomUUID();
     const images = await uploadImages(form, temporaryId);
-    return NextResponse.json(await createProduct(input, images), { status: 201 });
+    return NextResponse.json(await createProduct(input, images, variants), { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message === "Authentication required") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (error instanceof Error && error.message === "Vendor access required") return NextResponse.json({ error: "Forbidden" }, { status: 403 });

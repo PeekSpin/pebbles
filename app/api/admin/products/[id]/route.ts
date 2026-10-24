@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { deleteProduct, findProduct, updateProduct } from "../../../../../server/repositories/product.repository";
+import { deleteProduct, findProduct, updateProduct, ProductVariantInput } from "../../../../../server/repositories/product.repository";
 import { deleteProductImage, uploadProductImage } from "../../../../../server/storage";
 import { requireVendor } from "../../../../../server/services/vendor.service";
 
@@ -21,10 +21,23 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     description: String(form.get("description") ?? "").trim(),
     category: String(form.get("category") ?? "").trim(),
     price: String(form.get("price") ?? "").trim(),
-    stockQuantity: Number(form.get("stockQuantity"))
   };
-  if (!input.sku || !input.name || !input.description || !input.category || !/^\d+(\.\d{1,2})?$/.test(input.price) || !Number.isInteger(input.stockQuantity) || input.stockQuantity < 0) {
+  if (!input.sku || !input.name || !input.description || !input.category || !/^\d+(\.\d{1,2})?$/.test(input.price)) {
     return NextResponse.json({ error: "Invalid product fields" }, { status: 400 });
+  }
+  let variants: ProductVariantInput[];
+  try {
+    const parsed = JSON.parse(String(form.get("variants") ?? "[]")) as unknown;
+    if (!Array.isArray(parsed)) throw new Error();
+    variants = parsed.map((variant) => {
+      if (!variant || typeof variant !== "object") throw new Error();
+      const value = variant as Record<string, unknown>;
+      if (typeof value.size !== "string" || typeof value.sku !== "string" || !Number.isInteger(value.stockQuantity) || Number(value.stockQuantity) < 0) throw new Error();
+      return { size: value.size.trim(), sku: value.sku.trim(), stockQuantity: Number(value.stockQuantity) };
+    });
+    if (variants.some((variant) => !variant.size || !variant.sku) || new Set(variants.map((variant) => variant.size)).size !== variants.length) throw new Error();
+  } catch {
+    return NextResponse.json({ error: "Invalid product variants" }, { status: 400 });
   }
   const files = form.getAll("images").filter((value): value is File => value instanceof File && value.size > 0);
   const images = [];
@@ -40,7 +53,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   } else {
     for (const image of product.images) await deleteProductImage(image.imageUrl);
   }
-  return NextResponse.json(await updateProduct(params.id, input, images));
+  return NextResponse.json(await updateProduct(params.id, input, images, variants));
 }
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {

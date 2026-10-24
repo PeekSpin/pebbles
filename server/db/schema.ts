@@ -47,11 +47,25 @@ export const products = pgTable(
     description: text("description").notNull(),
     category: varchar("category", { length: 100 }),
     price: numeric("price", { precision: 12, scale: 2 }).notNull(),
-    stockQuantity: integer("stock_quantity").notNull().default(0),
     ...timestamps
+  }
+);
+
+export const productVariants = pgTable(
+  "product_variants",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    size: varchar("size", { length: 10 }).notNull(),
+    sku: varchar("sku", { length: 100 }).notNull(),
+    stockQuantity: integer("stock_quantity").notNull().default(0)
   },
   (table) => ({
-    stockQuantityNonnegative: check("products_stock_quantity_nonnegative", sql`${table.stockQuantity} >= 0`)
+    productSizeUnique: unique().on(table.productId, table.size),
+    stockQuantityNonnegative: check("product_variants_stock_quantity_nonnegative", sql`${table.stockQuantity} >= 0`),
+    productIdIndex: index("product_variants_product_id_idx").on(table.productId)
   })
 );
 
