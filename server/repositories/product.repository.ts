@@ -285,6 +285,23 @@ export async function findUserOrder(orderId: string, userId: string) {
   return { ...order, items, address: address ?? null };
 }
 
+export async function hasOrderItemsInStock(orderId: string) {
+  const items = await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+  if (!items.length) return false;
+  const availability = await Promise.all(items.map(async (item) => {
+    const [variant] = await db
+      .select({ stockQuantity: productVariants.stockQuantity })
+      .from(productVariants)
+      .where(and(
+        eq(productVariants.productId, item.productId),
+        eq(productVariants.sku, item.sku)
+      ))
+      .limit(1);
+    return variant !== undefined && variant.stockQuantity >= item.quantity;
+  }));
+  return availability.every(Boolean);
+}
+
 export async function listAllOrders() {
   const rows = await db.select().from(orders).orderBy(desc(orders.createdAt));
   return Promise.all(rows.map(async (order) => ({

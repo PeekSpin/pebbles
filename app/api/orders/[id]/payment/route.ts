@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Razorpay from "razorpay";
 
-import { findUserOrder } from "../../../../../server/repositories/product.repository";
+import { findUserOrder, hasOrderItemsInStock } from "../../../../../server/repositories/product.repository";
 import { ensureUserProfile } from "../../../../../server/services/user.service";
 
 export async function POST(_request: Request, { params }: { params: { id: string } }) {
@@ -10,6 +10,9 @@ export async function POST(_request: Request, { params }: { params: { id: string
     const order = await findUserOrder(params.id, profile.id);
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
     if (order.status !== "pending_payment") return NextResponse.json({ error: "This order does not need payment" }, { status: 409 });
+    if (!(await hasOrderItemsInStock(order.id))) {
+      return NextResponse.json({ error: "One or more items in this order are no longer available" }, { status: 409 });
+    }
     if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
       console.error("Razorpay credentials are not configured.");
       return NextResponse.json({ error: "Payment service is not configured" }, { status: 500 });
