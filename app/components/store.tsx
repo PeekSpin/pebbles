@@ -270,10 +270,52 @@ export function ProductAdminTable({ page = 1 }: { page?: number }) {
       setError("Unable to delete product");
       return;
     }
+
     setProducts((current) => current.filter((product) => product.id !== id));
   };
 
   return <div className="admin-table-wrap">{error && <p className="form-error">{error}</p>}{loading ? <div className="table-loading" role="status" aria-live="polite"><div className="loading-mark" aria-hidden="true"><span /><span /><span /></div><p>Loading products...</p></div> : <><table><thead><tr><th>Product</th><th>SKU</th><th>Category</th><th>Price</th><th>Stock by size</th><th>Action</th></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td><div className="admin-product-cell">{product.primaryImageUrl ? <img className="admin-product-thumb" src={product.primaryImageUrl} alt="" /> : <span className="admin-product-thumb admin-product-thumb-empty">—</span>}<span>{product.name}</span></div></td><td>{product.sku}</td><td>{product.category}</td><td>{money(Number(product.price))}</td><td>{product.variants.map((variant) => `${variant.size}: ${variant.stockQuantity}`).join(" · ") || "—"}</td><td><div className="admin-product-actions"><Link className="table-action table-action-edit" href={`/admin/products/${product.id}/edit`}>Edit</Link><button className="table-action table-action-delete" type="button" onClick={() => void remove(product.id)}>Delete</button></div></td></tr>)}</tbody></table>{!products.length && <p className="empty-state">No products yet.</p>}{products.length > 0 && totalPages > 1 && <nav className="pagination" aria-label="Product pages"><Link className={page === 1 ? "disabled" : ""} href={`/admin/products?page=${Math.max(1, page - 1)}`}>Previous</Link>{Array.from({ length: totalPages }, (_, index) => index + 1).map((number) => <Link className={number === page ? "active" : ""} href={`/admin/products?page=${number}`} key={number}>{number}</Link>)}<Link className={page === totalPages ? "disabled" : ""} href={`/admin/products?page=${Math.min(totalPages, page + 1)}`}>Next</Link></nav>}</>}</div>;
+}
+
+type AdminOrder = {
+  id: string;
+  status: string;
+  totalAmount: string;
+  createdAt: string;
+  items: Array<{ productName: string; size: string; quantity: number }>;
+};
+
+export function OrderAdminTable({ page = 1, status, from, to }: { page?: number; status?: string; from?: string; to?: string }) {
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams({ page: String(page) });
+    if (status) params.set("status", status);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    setLoading(true);
+    setError("");
+    fetch(`/api/admin/orders?${params}`).then(async (response) => {
+      if (!response.ok) throw new Error("Unable to load orders");
+      const result = await response.json() as { orders: AdminOrder[]; totalPages: number };
+      setOrders(result.orders);
+      setTotalPages(result.totalPages);
+    }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to load orders")).finally(() => setLoading(false));
+  }, [page, status, from, to]);
+
+  const pageHref = (nextPage: number) => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    if (nextPage > 1) params.set("page", String(nextPage));
+    return `/admin/orders?${params}`;
+  };
+
+  return <div className="admin-table-wrap">{error && <p className="form-error">{error}</p>}{loading ? <div className="table-loading" role="status" aria-live="polite"><div className="loading-mark" aria-hidden="true"><span /><span /><span /></div><p>Loading orders...</p></div> : <><table className="admin-orders-table"><thead><tr><th>Order</th><th>Items</th><th>Total</th><th>Status</th><th>Action</th></tr></thead><tbody>{orders.map((order) => <tr key={order.id}><td>#{order.id.slice(0, 8).toUpperCase()}<small className="admin-order-date">{new Date(order.createdAt).toLocaleDateString("en-IN")}</small></td><td>{order.items.map((item) => `${item.productName} · Size ${item.size} ×${item.quantity}`).join(", ")}</td><td>₹{Number(order.totalAmount).toLocaleString("en-IN")}</td><td><span className={`status ${order.status}`}>{order.status.replace("_", " ")}</span></td><td><Link className="table-action" href={`/admin/orders/${order.id}`}>View details →</Link></td></tr>)}</tbody></table>{!orders.length && <p className="empty-state">No orders match these filters.</p>}{orders.length > 0 && totalPages > 1 && <nav className="pagination" aria-label="Order pages"><Link className={page === 1 ? "disabled" : ""} href={pageHref(Math.max(1, page - 1))}>Previous</Link>{Array.from({ length: totalPages }, (_, index) => index + 1).map((number) => <Link className={number === page ? "active" : ""} href={pageHref(number)} key={number}>{number}</Link>)}<Link className={page === totalPages ? "disabled" : ""} href={pageHref(Math.min(totalPages, page + 1))}>Next</Link></nav>}</>}</div>;
 }
 
 export function ProductForm({ title, button, product }: { title: string; button: string; product?: AdminProduct }) {
