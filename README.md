@@ -1,73 +1,163 @@
 # Pebbles
 
-## Development
+Pebbles is a full-stack fashion storefront for browsing and purchasing
+**kurtas, sarees, and tops**. Customers can browse products, select size and
+quantity, manage a cart, place orders, pay through Razorpay, and track their
+orders. Vendors have a protected dashboard for managing products, inventory,
+customers, and order status.
+
+## Features
+
+### Customer experience
+
+- Public storefront and product catalog
+- Product search and category filtering
+- Product detail pages with image galleries, sizes, prices, and stock
+- Client-side shopping cart
+- Authenticated checkout and delivery details
+- Razorpay payment flow with server-side signature verification
+- Order history, order details, and pending-payment retry
+- Customer profile management
+
+### Vendor experience
+
+- Protected vendor dashboard at `/admin`
+- Product create, edit, list, and delete operations
+- Product image uploads to Neon Object Storage
+- Size-level SKU and inventory management
+- Customer and category views
+- Order filtering and order-status management
+
+## Technology stack
+
+| Area | Technology |
+| --- | --- |
+| Framework | Next.js 14 App Router |
+| Language | TypeScript |
+| UI | React 18 |
+| Authentication | Clerk |
+| Database | Neon PostgreSQL |
+| ORM and migrations | Drizzle ORM and Drizzle Kit |
+| Payments | Razorpay |
+| Image storage | Neon Object Storage via the AWS S3 SDK |
+| Webhook verification | Svix |
+
+## Project structure
+
+```text
+app/
+  page.tsx                 Storefront home page
+  products/                Product listing and product details
+  cart/                    Shopping cart
+  checkout/                Checkout and payment initiation
+  orders/                  Customer order history and details
+  profile/                 Customer profile
+  admin/                   Vendor dashboard and management pages
+  api/                     Customer, vendor, payment, and webhook routes
+server/
+  auth/                    Authentication and vendor authorization
+  db/                      Database connection and Drizzle schema
+  repositories/            Database queries
+  services/                User and vendor business logic
+  storage/                 Neon Object Storage integration
+  validators/              Request validation helpers
+drizzle/                   Generated database migrations
+scripts/                   Maintenance scripts
+public/images/             Brand and storefront assets
+```
+
+## Prerequisites
+
+- Node.js compatible with the versions in `package.json`
+- npm
+- A Clerk application
+- A Neon PostgreSQL database
+- A Neon Object Storage S3 credential and bucket
+- A Razorpay account for payment testing or production payments
+
+## Local development
+
+Install dependencies and start the development server:
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Clerk setup
+Open [http://localhost:3000](http://localhost:3000) in a browser.
 
-1. Create a Clerk application.
-2. Copy `.env.example` to `.env.local`.
-3. Replace the placeholders with the keys from Clerk:
-   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`: the browser-safe publishable key.
-   - `CLERK_SECRET_KEY`: the server-only secret key.
-   - `CLERK_WEBHOOK_SIGNING_SECRET`: the signing secret from the Clerk webhook endpoint.
-5. Keep the Neon connection string under the exact name `Postgres_URL`.
-6. Restart the development server.
+### Available scripts
 
-Clerk is registered in the root layout and request middleware. Protected server
-entry points must still call `auth()` (or the `requireUser` helper) themselves.
-The example endpoint at `/api/example` returns `401` when there is no signed-in
-Clerk session.
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the development server |
+| `npm run build` | Create a production build |
+| `npm run start` | Start the production server |
+| `npm run lint` | Run the Next.js lint command |
+| `npm run db:generate` | Generate a Drizzle migration from schema changes |
+| `npm run db:migrate` | Apply pending migrations |
+| `npm run db:backfill-users` | Synchronize existing Clerk users to Neon |
 
-## Neon database and Clerk webhooks
+## Environment configuration
 
-The database schema is defined in `server/db/schema.ts` and managed with
-Drizzle. Generate and apply migrations with:
+Create a `.env.local` file in the project root. Never commit this file or
+expose server-only secrets in browser code.
 
-```bash
-npm run db:generate
-npm run db:migrate
-npm run db:backfill-users
+### Clerk
+
+```dotenv
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
+CLERK_SECRET_KEY=sk_...
+CLERK_WEBHOOK_SIGNING_SECRET=whsec_...
 ```
 
 Configure Clerk to send `user.created`, `user.updated`, and `user.deleted`
-events to `/api/webhooks/clerk`. The endpoint verifies the Svix signature
-before processing. Deleted Clerk users are anonymized in Neon so historical
-orders remain intact. Run the backfill command once after enabling the webhook
-to synchronize users who already existed in Clerk.
+events to `/api/webhooks/clerk`. The webhook signing secret must match the
+secret configured for that endpoint.
 
-The protected `/api/profile` route uses Clerk's verified server identity and
-creates the profile on demand if webhook delivery is delayed.
-
-## Product CRUD and Neon Object Storage
-
-Vendor product management is available at `/admin/products`. The create,
-edit, list, and delete operations are protected by the server-side vendor
-check. Product images are uploaded to the Neon Object Storage bucket named
-`products`; the corresponding `product_images.sort_order` is preserved from
-the order selected in the upload control.
-
-Neon Object Storage credentials use these environment variables:
+### Database
 
 ```dotenv
+Postgres_URL=postgresql://...
+```
+
+`Postgres_URL` is case-sensitive and must use this exact spelling.
+
+### Neon Object Storage
+
+```dotenv
+S3_BUCKET_NAME=products
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
-AWS_ENDPOINT_URL_S3=...
+AWS_ENDPOINT_URL_S3=https://...
 AWS_REGION=...
 ```
 
-Create a Neon storage credential with read/write access and copy these values
-from Neon into `.env.local`. The bucket must be named `products`.
+Create a Neon storage credential with read/write access and use a bucket named
+`products`. Uploaded images must be valid image files smaller than 5 MB.
+Credentials stay on the server; the application generates signed URLs for
+displaying stored images.
 
-## Vendor access
+### Razorpay
 
-Profiles are created with the `customer` role by default. To grant a trusted
-user access to the vendor dashboard, update their role in Neon using their
-Clerk user ID:
+```dotenv
+RAZORPAY_KEY_ID=...
+RAZORPAY_KEY_SECRET=...
+```
+
+The secret key is server-only. Use Razorpay test credentials during local
+development.
+
+## Authentication and vendor access
+
+Clerk provides the signed-in identity. Protected server routes still verify
+authentication themselves; middleware alone is not an authorization decision.
+The storefront, product pages, cart, and contact page are publicly accessible.
+Checkout, profile, orders, payments, and payment verification require a signed
+in user.
+
+New local profiles default to the `customer` role. To grant a trusted Clerk
+user vendor access, update the role in Neon using their Clerk user ID:
 
 ```sql
 UPDATE users
@@ -75,10 +165,103 @@ SET role = 'vendor', updated_at = now()
 WHERE external_user_id = 'user_...';
 ```
 
-Vendor access is checked on the server in `app/admin/layout.tsx`; changing
-client-side navigation or hiding links cannot grant admin access.
+Vendor authorization is checked on the server. Hiding an admin link or
+changing client-side navigation does not grant access.
 
-The storefront remains publicly browsable. Adding products to the cart and
-opening the cart do not require authentication. Selecting an Account link
-starts Clerk sign-in when the visitor is signed out and opens the profile when
-the visitor is signed in.
+## Main routes
+
+### Customer routes
+
+| Route | Purpose |
+| --- | --- |
+| `/` | Storefront home page |
+| `/products` | Product listing, search, and category filtering |
+| `/products/:slug` | Product details and variant selection |
+| `/cart` | Current shopping cart |
+| `/checkout` | Delivery details and payment |
+| `/orders` | Customer order history |
+| `/orders/:id` | Order details and pending-payment retry |
+| `/profile` | Customer profile |
+| `/contact` | Contact page |
+
+### Vendor routes
+
+| Route | Purpose |
+| --- | --- |
+| `/admin` | Vendor dashboard |
+| `/admin/products` | Product and inventory list |
+| `/admin/products/new` | Create a product |
+| `/admin/products/:id/edit` | Edit a product |
+| `/admin/orders` | View and filter orders |
+| `/admin/orders/:id` | View and update an order |
+| `/admin/customers` | Customer list |
+| `/admin/categories` | Category view |
+
+## Database and migrations
+
+The canonical schema is in `server/db/schema.ts`. The database contains
+users, products, product variants, product images, orders, order items, order
+addresses, and payments.
+
+When changing the schema:
+
+1. Update `server/db/schema.ts`.
+2. Generate a migration:
+
+   ```bash
+   npm run db:generate
+   ```
+
+3. Review the generated SQL in `drizzle/`.
+4. Apply it to the configured database:
+
+   ```bash
+   npm run db:migrate
+   ```
+
+Do not edit an already-applied migration. Create a new migration for each
+subsequent change.
+
+After enabling Clerk webhooks for an existing application, synchronize users
+that predate the webhook:
+
+```bash
+npm run db:backfill-users
+```
+
+## Order and payment flow
+
+1. The customer selects a product variant and adds it to the cart.
+2. Checkout collects recipient and delivery information.
+3. The server re-checks product, variant, price, and stock before creating a
+   pending order.
+4. A Razorpay order is created in INR.
+5. Razorpay returns payment details to the client.
+6. The server verifies the Razorpay signature and confirms the local order.
+
+Prices and stock are always read from the database on the server. The client
+cannot choose the final order total. Pending orders can request a new payment
+order from the order details page.
+
+## Deployment checklist
+
+Before deploying:
+
+1. Configure all Clerk, Neon, Object Storage, and Razorpay environment
+   variables in the hosting provider.
+2. Set the Clerk webhook URL to
+   `https://<your-domain>/api/webhooks/clerk`.
+3. Apply all pending Drizzle migrations.
+4. Run the Clerk user backfill if migrating an existing Clerk application.
+5. Confirm the Object Storage bucket is named `products`.
+6. Use Razorpay live credentials only after testing checkout and payment
+   verification with test credentials.
+7. Build and start the application:
+
+   ```bash
+   npm run build
+   npm run start
+   ```
+
+For deeper architecture, data-model, API, and operational details, see
+[TECHNICAL_DOCUMENTATION.md](./TECHNICAL_DOCUMENTATION.md).
