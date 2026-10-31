@@ -194,6 +194,9 @@ Changing client-side navigation or hiding a link does not grant vendor access.
 
 The canonical schema is in
 [server/db/schema.ts](/Users/alenpaji/Documents/pebbles/server/db/schema.ts).
+See [DATABASE_DOCUMENTATION.md](./DATABASE_DOCUMENTATION.md) for the complete
+table reference, relationship map, constraints, indexes, migration history,
+and database operations.
 
 ### Enumerations
 

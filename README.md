@@ -264,4 +264,6 @@ Before deploying:
    ```
 
 For deeper architecture, data-model, API, and operational details, see
-[TECHNICAL_DOCUMENTATION.md](./TECHNICAL_DOCUMENTATION.md).
+[TECHNICAL_DOCUMENTATION.md](./TECHNICAL_DOCUMENTATION.md). For the dedicated
+database reference, see
+[DATABASE_DOCUMENTATION.md](./DATABASE_DOCUMENTATION.md).
