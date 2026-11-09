@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
 import { createProduct, listProducts, ProductVariantInput } from "../../../../server/repositories/product.repository";
@@ -76,7 +77,11 @@ export async function POST(request: Request) {
     const variants = variantsInput(form);
     const temporaryId = randomUUID();
     const images = await uploadImages(form, temporaryId);
-    return NextResponse.json(await createProduct(input, images, variants), { status: 201 });
+    const product = await createProduct(input, images, variants);
+    revalidatePath("/");
+    revalidatePath("/products");
+    revalidatePath(`/products/${product.id}`);
+    return NextResponse.json(product, { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message === "Authentication required") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (error instanceof Error && error.message === "Vendor access required") return NextResponse.json({ error: "Forbidden" }, { status: 403 });

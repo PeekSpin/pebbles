@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
 import { deleteProduct, findProduct, updateProduct, ProductVariantInput } from "../../../../../server/repositories/product.repository";
@@ -71,6 +72,9 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const updated = await updateProduct(params.id, input, images, variants);
     // Only remove files from storage once the database no longer references them.
     await Promise.allSettled(removed.map((image) => deleteProductImage(image.imageUrl)));
+    revalidatePath("/");
+    revalidatePath("/products");
+    revalidatePath(`/products/${params.id}`);
     return NextResponse.json(updated);
   } catch (error) {
     await Promise.allSettled(uploaded.map((key) => deleteProductImage(key)));
@@ -85,5 +89,8 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
   if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
   for (const image of product.images) await deleteProductImage(image.imageUrl);
   await deleteProduct(params.id);
+  revalidatePath("/");
+  revalidatePath("/products");
+  revalidatePath(`/products/${params.id}`);
   return new Response(null, { status: 204 });
 }
