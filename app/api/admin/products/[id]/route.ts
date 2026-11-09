@@ -39,21 +39,44 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   } catch {
     return NextResponse.json({ error: "Invalid product variants" }, { status: 400 });
   }
+  let keepIds: string[] | null = null;
+  const rawKeep = form.get("keepImageIds");
+  if (typeof rawKeep === "string") {
+    try {
+      const parsed = JSON.parse(rawKeep) as unknown;
+      if (!Array.isArray(parsed) || parsed.some((id) => typeof id !== "string")) throw new Error();
+      keepIds = parsed as string[];
+    } catch {
+      return NextResponse.json({ error: "Invalid image list" }, { status: 400 });
+    }
+  }
+  const existingById = new Map(product.images.map((image) => [image.id, image]));
+  const kept = keepIds === null ? product.images : keepIds.flatMap((id) => existingById.get(id) ?? []);
+  const keptIds = new Set(kept.map((image) => image.id));
+  const removed = product.images.filter((image) => !keptIds.has(image.id));
+
   const files = form.getAll("images").filter((value): value is File => value instanceof File && value.size > 0);
-  const images = [];
-  for (let index = 0; index < files.length; index += 1) {
-    const file = files[index];
+  for (const file of files) {
     if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) return NextResponse.json({ error: "Images must be image files smaller than 5MB" }, { status: 400 });
-    const key = `${params.id}/${index}-${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
-    await uploadProductImage(key, Buffer.from(await file.arrayBuffer()), file.type);
-    images.push({ imageUrl: key, altText: file.name, sortOrder: index });
   }
-  if (!images.length) {
-    images.push(...product.images.map(({ imageUrl, altText, sortOrder }) => ({ imageUrl, altText: altText ?? "", sortOrder })));
-  } else {
-    for (const image of product.images) await deleteProductImage(image.imageUrl);
+  const uploaded: string[] = [];
+  const images = kept.map(({ imageUrl, altText }, index) => ({ imageUrl, altText: altText ?? "", sortOrder: index }));
+  try {
+    for (const file of files) {
+      const key = `${params.id}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
+      await uploadProductImage(key, Buffer.from(await file.arrayBuffer()), file.type);
+      uploaded.push(key);
+      images.push({ imageUrl: key, altText: file.name, sortOrder: images.length });
+    }
+    const updated = await updateProduct(params.id, input, images, variants);
+    // Only remove files from storage once the database no longer references them.
+    await Promise.allSettled(removed.map((image) => deleteProductImage(image.imageUrl)));
+    return NextResponse.json(updated);
+  } catch (error) {
+    await Promise.allSettled(uploaded.map((key) => deleteProductImage(key)));
+    console.error("Unable to update product.", error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to update product" }, { status: 500 });
   }
-  return NextResponse.json(await updateProduct(params.id, input, images, variants));
 }
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {

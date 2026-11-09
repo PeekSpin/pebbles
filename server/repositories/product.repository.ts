@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, gte, inArray, isNull, lte, sql, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lte, notInArray, sql, sum } from "drizzle-orm";
 
 import { db } from "../db";
 import { orderAddresses, orderItems, orders, payments, productImages, products, productVariants, users } from "../db/schema";
@@ -152,6 +152,20 @@ export async function createProduct(input: ProductInput, images: Array<{ imageUr
   return product;
 }
 
+async function syncProductVariants(productId: string, variants: ProductVariantInput[]) {
+  if (!variants.length) {
+    await db.delete(productVariants).where(eq(productVariants.productId, productId));
+    return;
+  }
+  await db.delete(productVariants).where(and(eq(productVariants.productId, productId), notInArray(productVariants.size, variants.map((variant) => variant.size))));
+  await db.insert(productVariants)
+    .values(variants.map((variant) => ({ ...variant, productId })))
+    .onConflictDoUpdate({
+      target: [productVariants.productId, productVariants.size],
+      set: { sku: sql`excluded.sku`, stockQuantity: sql`excluded.stock_quantity` }
+    });
+}
+
 export async function updateProduct(id: string, input: ProductInput, images: Array<{ imageUrl: string; altText: string; sortOrder: number }>, variants: ProductVariantInput[]) {
   const [product] = await db.update(products).set({ ...input, updatedAt: new Date() }).where(eq(products.id, id)).returning();
   if (!product) return null;
@@ -159,14 +173,12 @@ export async function updateProduct(id: string, input: ProductInput, images: Arr
   if (images.length) {
     await db.insert(productImages).values(images.map((image) => ({ ...image, productId: id })));
   }
-  await db.delete(productVariants).where(eq(productVariants.productId, id));
-  if (variants.length) await db.insert(productVariants).values(variants.map((variant) => ({ ...variant, productId: id })));
+  await syncProductVariants(id, variants);
   return product;
 }
 
 export async function updateProductVariants(id: string, variants: ProductVariantInput[]) {
-  await db.delete(productVariants).where(eq(productVariants.productId, id));
-  if (variants.length) await db.insert(productVariants).values(variants.map((variant) => ({ ...variant, productId: id })));
+  await syncProductVariants(id, variants);
   return db.select().from(productVariants).where(eq(productVariants.productId, id)).orderBy(asc(productVariants.size));
 }
 

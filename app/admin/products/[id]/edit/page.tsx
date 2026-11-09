@@ -15,5 +15,5 @@ export default async function EditProductPage({ params }: { params: { id: string
       imageUrl: await getProductImageUrl(image.imageUrl)
     })))
   };
-  return <AdminShell><ProductForm title="Edit product" button="Save changes" product={productForEdit} /></AdminShell>;
+  return <AdminShell><ProductForm key={`${product.id}-${product.updatedAt?.toString()}`} title="Edit product" button="Save changes" product={productForEdit} /></AdminShell>;
 }

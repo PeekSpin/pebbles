@@ -36,6 +36,7 @@ export const products: Product[] = [
 ];
 
 const productCategories: Product["category"][] = ["Kurtas", "Sarees", "Tops"];
+const productSizes = ["S", "M", "L", "XL", "XXL"];
 
 const cartQuantityKey = "pebbles-cart-quantity";
 const cartItemKey = "pebbles-cart-item";
@@ -254,7 +255,7 @@ type AdminProduct = {
   category: string | null;
   price: string;
   variants: Array<{ id?: string; size: string; sku: string; stockQuantity: number }>;
-  images?: Array<{ imageUrl: string; altText: string | null; sortOrder: number }>;
+  images?: Array<{ id?: string; imageUrl: string; altText: string | null; sortOrder: number }>;
   primaryImageUrl?: string | null;
 };
 
@@ -335,7 +336,18 @@ export function ProductForm({ title, button, product }: { title: string; button:
   const [saving, setSaving] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
-  const [variants, setVariants] = useState(() => product?.variants?.length ? product.variants.map(({ size, sku, stockQuantity }) => ({ size, sku, stockQuantity: Number(stockQuantity) })) : ["S", "M", "L", "XL", "XXL"].map((size) => ({ size, sku: product?.sku ? `${product.sku}-${size}` : "", stockQuantity: 0 })));
+  const [variants, setVariants] = useState(() => {
+    const saved = new Map((product?.variants ?? []).map((variant) => [variant.size, variant]));
+    const rows = productSizes.map((size) => {
+      const match = saved.get(size);
+      return match
+        ? { size, sku: match.sku, stockQuantity: Number(match.stockQuantity) || 0 }
+        : { size, sku: product?.sku ? `${product.sku}-${size}` : "", stockQuantity: 0 };
+    });
+    const custom = (product?.variants ?? []).filter((variant) => !productSizes.includes(variant.size)).map((variant) => ({ size: variant.size, sku: variant.sku, stockQuantity: Number(variant.stockQuantity) || 0 }));
+    return [...rows, ...custom];
+  });
+  const [existingImages, setExistingImages] = useState(() => (product?.images ?? []).filter((image) => image.id));
 
   useEffect(() => {
     const nextPreviews = selectedFiles.map((file) => URL.createObjectURL(file));
@@ -368,6 +380,20 @@ export function ProductForm({ title, button, product }: { title: string; button:
     setSelectedFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
   };
 
+  const moveExisting = (index: number, direction: -1 | 1) => {
+    setExistingImages((current) => {
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= current.length) return current;
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
+  };
+
+  const removeExisting = (index: number) => {
+    setExistingImages((current) => current.filter((_, imageIndex) => imageIndex !== index));
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaving(true);
@@ -375,6 +401,7 @@ export function ProductForm({ title, button, product }: { title: string; button:
     const formData = new FormData(event.currentTarget);
     formData.set("variants", JSON.stringify(variants.filter((variant) => variant.sku.trim())));
     formData.delete("images");
+    if (product) formData.set("keepImageIds", JSON.stringify(existingImages.map((image) => image.id)));
     selectedFiles.forEach((file) => formData.append("images", file));
     try {
       const response = await fetch(product ? `/api/admin/products/${product.id}` : "/api/admin/products", {
@@ -394,5 +421,5 @@ export function ProductForm({ title, button, product }: { title: string; button:
     }
   };
 
-  return <div className="admin-content product-editor"><div><p className="eyebrow">Products</p><h1>{title}</h1>{error && <p className="form-error">{error}</p>}<form className="admin-form" onSubmit={submit}><Field name="name" label="Product name" defaultValue={product?.name} /><Field name="sku" label="SKU" defaultValue={product?.sku} /><div className="field-row"><label className="field"><span>Category</span><select name="category" defaultValue={product?.category ?? ""} required><option value="" disabled>Select a category</option>{productCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label><Field name="price" label="Price (₹)" defaultValue={product?.price} /></div><label className="field"><span>Description</span><textarea name="description" rows={5} defaultValue={product?.description} required /></label>{product?.images && product.images.length > 0 && <div className="image-order-list"><span className="image-order-label">Current image order</span><div className="current-image-grid">{product.images.map((image, index) => <div className="current-image" key={image.imageUrl}><img src={image.imageUrl} alt={image.altText || `Product image ${index + 1}`} /><div><span>{index + 1}.</span> {image.altText || "Product image"}</div></div>)}</div></div>}<label className="upload-box" htmlFor="product-images">＋<span>Add product images</span><small>PNG or JPG up to 5MB; choose multiple files</small><input id="product-images" name="images" type="file" accept="image/*" multiple onChange={(event) => { addFiles(event.target.files); event.currentTarget.value = ""; }} /></label>{selectedFiles.length > 0 && <div className="selected-images"><span className="image-order-label">New image order</span><div className="image-preview-grid">{selectedFiles.map((file, index) => <div className="image-preview" key={`${file.name}-${file.lastModified}-${index}`}><img src={previews[index]} alt="" /><div className="image-preview-meta"><strong>{index + 1}. {file.name}</strong><div><button type="button" onClick={() => moveFile(index, -1)} disabled={index === 0} aria-label={`Move ${file.name} up`}>↑</button><button type="button" onClick={() => moveFile(index, 1)} disabled={index === selectedFiles.length - 1} aria-label={`Move ${file.name} down`}>↓</button><button type="button" onClick={() => removeFile(index)} aria-label={`Remove ${file.name}`}>×</button></div></div></div>)}</div></div>}<button className="admin-button" type="submit" disabled={saving}>{saving ? "Saving..." : button} →</button></form></div>  <aside className="stock-manager"><p className="eyebrow">Inventory</p><h2>Manage stocks</h2><p>Set independent stock and SKU values for each available size.</p>{variants.map((variant, index) => <div className="variant-row" key={variant.size}><strong>{variant.size}</strong><input aria-label={`${variant.size} SKU`} placeholder="Variant SKU" value={variant.sku} onChange={(event) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, sku: event.target.value } : item))} /><input aria-label={`${variant.size} stock quantity`} type="number" min="0" step="1" value={variant.stockQuantity} onChange={(event) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, stockQuantity: Math.max(0, Number(event.target.value) || 0) } : item))} /></div>)}<p className="form-note">Leave a SKU blank to omit that size. Customer pages show availability automatically.</p></aside></div>;
+  return <div className="admin-content product-editor"><div><p className="eyebrow">Products</p><h1>{title}</h1>{error && <p className="form-error">{error}</p>}<form className="admin-form" onSubmit={submit}><Field name="name" label="Product name" defaultValue={product?.name} /><Field name="sku" label="SKU" defaultValue={product?.sku} /><div className="field-row"><label className="field"><span>Category</span><select name="category" defaultValue={product?.category ?? ""} required><option value="" disabled>Select a category</option>{productCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label><Field name="price" label="Price (₹)" defaultValue={product?.price} /></div><label className="field"><span>Description</span><textarea name="description" rows={5} defaultValue={product?.description} required /></label>{existingImages.length > 0 && <div className="image-order-list"><span className="image-order-label">Current images (first image is the cover)</span><div className="image-preview-grid">{existingImages.map((image, index) => <div className="image-preview" key={image.id}><img src={image.imageUrl} alt={image.altText || `Product image ${index + 1}`} /><div className="image-preview-meta"><strong>{index + 1}. {image.altText || "Product image"}</strong><div><button type="button" onClick={() => moveExisting(index, -1)} disabled={index === 0} aria-label={`Move image ${index + 1} up`}>↑</button><button type="button" onClick={() => moveExisting(index, 1)} disabled={index === existingImages.length - 1} aria-label={`Move image ${index + 1} down`}>↓</button><button type="button" onClick={() => removeExisting(index)} aria-label={`Remove image ${index + 1}`}>×</button></div></div></div>)}</div></div>}<label className="upload-box" htmlFor="product-images">＋<span>Add product images</span><small>PNG or JPG up to 5MB; choose multiple files</small><input id="product-images" name="images" type="file" accept="image/*" multiple onChange={(event) => { addFiles(event.target.files); event.currentTarget.value = ""; }} /></label>{selectedFiles.length > 0 && <div className="selected-images"><span className="image-order-label">New image order</span><div className="image-preview-grid">{selectedFiles.map((file, index) => <div className="image-preview" key={`${file.name}-${file.lastModified}-${index}`}><img src={previews[index]} alt="" /><div className="image-preview-meta"><strong>{index + 1}. {file.name}</strong><div><button type="button" onClick={() => moveFile(index, -1)} disabled={index === 0} aria-label={`Move ${file.name} up`}>↑</button><button type="button" onClick={() => moveFile(index, 1)} disabled={index === selectedFiles.length - 1} aria-label={`Move ${file.name} down`}>↓</button><button type="button" onClick={() => removeFile(index)} aria-label={`Remove ${file.name}`}>×</button></div></div></div>)}</div></div>}<button className="admin-button" type="submit" disabled={saving}>{saving ? "Saving..." : button} →</button></form></div>  <aside className="stock-manager"><p className="eyebrow">Inventory</p><h2>Manage stocks</h2><p>Set independent stock and SKU values for each available size.</p>{variants.map((variant, index) => <div className="variant-row" key={variant.size}><strong>{variant.size}</strong><input aria-label={`${variant.size} SKU`} placeholder="Variant SKU" value={variant.sku} onChange={(event) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, sku: event.target.value } : item))} /><input aria-label={`${variant.size} stock quantity`} type="number" min="0" step="1" value={variant.stockQuantity} onChange={(event) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, stockQuantity: Math.max(0, Number(event.target.value) || 0) } : item))} /></div>)}<p className="form-note">Leave a SKU blank to omit that size. Customer pages show availability automatically.</p></aside></div>;
 }
