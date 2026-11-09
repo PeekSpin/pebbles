@@ -249,6 +249,7 @@ export function AdminTable({ type }: { type: "products" | "orders" | "customers"
 
 type AdminProduct = {
   id: string;
+  updatedAt?: string | Date;
   sku: string;
   name: string;
   description: string;
@@ -348,6 +349,27 @@ export function ProductForm({ title, button, product }: { title: string; button:
     return [...rows, ...custom];
   });
   const [existingImages, setExistingImages] = useState(() => (product?.images ?? []).filter((image) => image.id));
+
+  useEffect(() => {
+    if (!product) {
+      setVariants(productSizes.map((size) => ({ size, sku: "", stockQuantity: 0 })));
+      setExistingImages([]);
+      return;
+    }
+
+    const saved = new Map(product.variants.map((variant) => [variant.size, variant]));
+    const standard = productSizes.map((size) => {
+      const match = saved.get(size);
+      return match
+        ? { size, sku: match.sku, stockQuantity: Number(match.stockQuantity) || 0 }
+        : { size, sku: product.sku ? `${product.sku}-${size}` : "", stockQuantity: 0 };
+    });
+    const custom = product.variants
+      .filter((variant) => !productSizes.includes(variant.size))
+      .map((variant) => ({ size: variant.size, sku: variant.sku, stockQuantity: Number(variant.stockQuantity) || 0 }));
+    setVariants([...standard, ...custom]);
+    setExistingImages(product.images?.filter((image) => image.id) ?? []);
+  }, [product?.id, product?.updatedAt]);
 
   useEffect(() => {
     const nextPreviews = selectedFiles.map((file) => URL.createObjectURL(file));
