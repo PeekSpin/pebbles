@@ -178,7 +178,7 @@
 
 .manifesto.promise-strip{padding:54px 7% 58px;background:#fbf6f1;color:var(--ink)}
 .promise-strip .promise-strip-title{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;margin:-1px;padding:0;border:0}
-.promise-strip .promise-grid{grid-template-columns:repeat(4,minmax(0,1fr));max-width:1450px;gap:40px;text-align:center}
+.promise-strip .promise-grid{grid-template-columns:repeat(3,minmax(0,1fr));max-width:1450px;gap:40px;text-align:center}
 .promise-strip .promise-grid>div{display:flex;flex-direction:column;align-items:center;border:0;padding:0}
 .promise-strip .promise-icon{width:56px;height:56px;margin:0 0 20px;color:#96704a;stroke-width:2.4}
 .promise-strip .promise-grid h3{margin:0 0 15px;font-family:"DM Sans",sans-serif;font-size:clamp(17px,1.5vw,22px);font-weight:600;letter-spacing:-.02em;line-height:1.25}
