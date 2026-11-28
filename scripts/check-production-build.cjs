@@ -19,6 +19,12 @@ try {
     console.warn("[startup] Storefront logo missing. Check that public was included in the release.");
   }
   console.info(`[startup] Node ${process.version}, Next build ${buildId}`);
+  try {
+    const { versions } = require("sharp");
+    console.info(`[startup] Native image optimizer: sharp ${versions.sharp}, libvips ${versions.vips}`);
+  } catch {
+    console.warn("[startup] Native image optimizer unavailable. Check the release's platform-specific optional dependencies.");
+  }
 } catch (error) {
   console.error(`[startup] Incomplete production release: ${error.message}. Run npm run build in the build phase and include .next and public in the release.`);
   process.exitCode = 1;
