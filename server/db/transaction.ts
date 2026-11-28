@@ -10,6 +10,7 @@ const pool = new Pool({
   idleTimeoutMillis: 10000,
 });
 export const writeDb = drizzle(pool);
+console.info("[database] Neon transaction pool initialized");
 export type WriteTransaction = Parameters<
   Parameters<typeof writeDb.transaction>[0]
 >[0];

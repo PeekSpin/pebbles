@@ -22,7 +22,12 @@ export async function GET(request: Request) {
   } catch (error) {
     if (error instanceof Error && error.message === "Authentication required") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (error instanceof Error && error.message === "Vendor access required") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    console.error("Unable to load admin orders.", error);
+    const code = (error as { cause?: { code?: unknown } } | null)?.cause?.code;
+    if (typeof code === "string" && /^[A-Z0-9]{5}$/.test(code)) {
+      console.error("Unable to load admin orders. SQLSTATE %s", code);
+    } else {
+      console.error("Unable to load admin orders.");
+    }
     return NextResponse.json({ error: "Unable to load orders" }, { status: 500 });
   }
 }

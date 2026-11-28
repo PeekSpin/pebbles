@@ -10,3 +10,4 @@ if (!databaseUrl) {
 }
 
 export const db = drizzle(neon(databaseUrl));
+console.info("[database] Neon HTTP client initialized");
