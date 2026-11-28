@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, count, eq, isNull, sum } from "drizzle-orm";
 
-import { db } from "../db";
+import { getDb } from "../db";
 import { orders, users } from "../db/schema";
 
 export type UserProfileInput = {
@@ -12,14 +12,14 @@ export type UserProfileInput = {
 };
 
 export async function upsertUserProfile(input: UserProfileInput) {
-  const [existingByExternalId] = await db
+  const [existingByExternalId] = await getDb()
     .select()
     .from(users)
     .where(eq(users.externalUserId, input.externalUserId))
     .limit(1);
 
   if (existingByExternalId) {
-    const [user] = await db
+    const [user] = await getDb()
       .update(users)
       .set({
         name: input.name,
@@ -33,14 +33,14 @@ export async function upsertUserProfile(input: UserProfileInput) {
   }
 
   if (input.email) {
-    const [existingByEmail] = await db
+    const [existingByEmail] = await getDb()
       .select()
       .from(users)
       .where(eq(users.email, input.email))
       .limit(1);
 
     if (existingByEmail) {
-      const [user] = await db
+      const [user] = await getDb()
         .update(users)
         .set({
           externalUserId: input.externalUserId,
@@ -55,7 +55,7 @@ export async function upsertUserProfile(input: UserProfileInput) {
     }
   }
 
-  const [user] = await db
+  const [user] = await getDb()
     .insert(users)
     .values(input)
     .onConflictDoUpdate({
@@ -73,7 +73,7 @@ export async function upsertUserProfile(input: UserProfileInput) {
 }
 
 export async function anonymizeUserProfile(externalUserId: string) {
-  await db
+  await getDb()
     .update(users)
     .set({
       name: null,
@@ -85,7 +85,7 @@ export async function anonymizeUserProfile(externalUserId: string) {
 }
 
 export async function findUserByExternalId(externalUserId: string) {
-  const [user] = await db
+  const [user] = await getDb()
     .select()
     .from(users)
     .where(eq(users.externalUserId, externalUserId))
@@ -98,17 +98,17 @@ export async function listAdminCustomers(options: { page?: number; pageSize?: nu
   const pageSize = options.pageSize ?? 10;
   const page = Math.max(1, options.page ?? 1);
   const customerWhere = and(eq(users.role, "customer"), isNull(users.deletedAt));
-  const [customerRows, [{ total }]] = await Promise.all([db
+  const [customerRows, [{ total }]] = await Promise.all([getDb()
     .select({ id: users.id, name: users.name, email: users.email, createdAt: users.createdAt })
     .from(users)
     .where(customerWhere)
     .orderBy(users.createdAt)
     .limit(pageSize)
-    .offset((page - 1) * pageSize), db.select({ total: count() }).from(users).where(customerWhere)]);
+    .offset((page - 1) * pageSize), getDb().select({ total: count() }).from(users).where(customerWhere)]);
 
   return {
     customers: await Promise.all(customerRows.map(async (customer) => {
-    const [summary] = await db
+    const [summary] = await getDb()
       .select({ orderCount: count(orders.id), totalSpent: sum(orders.totalAmount) })
       .from(orders)
       .where(eq(orders.userId, customer.id));

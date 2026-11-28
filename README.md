@@ -340,9 +340,11 @@ TypeScript configuration, scripts and tests because GoDaddy installs production
 dependencies before building.
 
 1. In the app dashboard, keep the source on `PeekSpin/pebbles`, branch `main`.
-   Configure the intended `NEXT_PUBLIC_*` values before building. Next embeds
-   these values in browser bundles. Configure server secrets for the **Published**
-   environment as well as **Preview**. Once the intended commit is on `main`,
+   Configure the intended Clerk, database, storage and payment settings for
+   both **Preview** and **Published**. The build can run without service
+   credentials. When the Clerk publishable key is absent at build time, pages
+   render with Clerk at request time. Checkout receives the public Razorpay
+   key ID from the payment session. Once the intended commit is on `main`,
    select **Update Preview**.
 2. In **Deployment Info → Preview**, check the commit and open the preview.
    The source ZIP or Git checkout supplies `public/`. The built release needs

@@ -3,11 +3,16 @@ import "server-only";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 
-const databaseUrl = process.env.POSTGRES_URL;
-
-if (!databaseUrl) {
-  throw new Error("Missing POSTGRES_URL environment variable");
+function createDatabase() {
+  const url = process.env.POSTGRES_URL;
+  if (!url) throw new Error("Missing POSTGRES_URL environment variable");
+  const database = drizzle(neon(url));
+  console.info("[database] Neon HTTP client initialized");
+  return database;
 }
 
-export const db = drizzle(neon(databaseUrl));
-console.info("[database] Neon HTTP client initialized");
+let database: ReturnType<typeof createDatabase> | undefined;
+
+export function getDb() {
+  return database ??= createDatabase();
+}

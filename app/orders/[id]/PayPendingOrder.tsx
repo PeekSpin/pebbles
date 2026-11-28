@@ -33,12 +33,12 @@ export default function PayPendingOrder({ orderId, amount, description }: { orde
     setError("");
     try {
       const response = await fetch(`/api/orders/${orderId}/payment`, { method: "POST" });
-      const paymentOrder = await response.json() as { order_id?: string; amount?: number; currency?: string; error?: string };
+      const paymentOrder = await response.json() as { order_id?: string; key_id?: string; amount?: number; currency?: string; error?: string };
       if (!response.ok || !paymentOrder.order_id || !paymentOrder.amount || !paymentOrder.currency) {
         throw new Error(paymentOrder.error ?? "Unable to start payment");
       }
       const razorpay = new window.Razorpay({
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? "",
+        key: paymentOrder.key_id ?? process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? "",
         amount: paymentOrder.amount,
         currency: paymentOrder.currency,
         name: "Pebbles",

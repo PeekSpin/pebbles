@@ -57,10 +57,10 @@ export default function CheckoutPage() {
       const checkoutKey=sessionStorage.getItem(sessionKey) || crypto.randomUUID();
       sessionStorage.setItem(sessionKey,checkoutKey);
       const response=await fetch("/api/create-order",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({checkoutKey,items,address})});
-      const order = await response.json() as { order_id?: string; amount?: number; currency?: string; local_order_id?: string; error?: string };
+      const order = await response.json() as { order_id?: string; key_id?: string; amount?: number; currency?: string; local_order_id?: string; error?: string };
       if (!response.ok || !order.order_id || !order.amount || !order.currency || !order.local_order_id) throw new Error(order.error ?? "Unable to start payment");
       const razorpay = new window.Razorpay({
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? "",
+        key: order.key_id ?? process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? "",
         amount: order.amount,
         currency: order.currency,
         name: "Pebbles",

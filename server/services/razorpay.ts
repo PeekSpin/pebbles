@@ -56,6 +56,7 @@ export async function paymentSession(
   }
   return {
     order_id: providerId,
+    key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID,
     amount,
     currency: "INR",
     local_order_id: order.id,
