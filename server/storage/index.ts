@@ -20,8 +20,8 @@ function getStorage() {
   console.log("Neon Object Storage endpoint: %s", endpoint);
   const s3AccessKey = environmentValue("S3_ACCESS_KEY_ID") ?? "";
   const s3SecretKey = environmentValue("S3_SECRET_ACCESS_KEY") ?? "";
-  const awsAccessKey = environmentValue("AWS_SECRET_ACCESS_KEY") ?? "";
-  const awsSecretKey = environmentValue("AWS_ACCESS_KEY_ID") ?? "";
+  const awsAccessKey = environmentValue("AWS_ACCESS_KEY_ID") ?? "";
+  const awsSecretKey = environmentValue("AWS_SECRET_ACCESS_KEY") ?? "";
   // Prefer a complete S3-prefixed pair; otherwise use the AWS-prefixed pair.
   const useS3Keys = Boolean(s3AccessKey && s3SecretKey);
   const accessKeyId = useS3Keys ? s3AccessKey : awsAccessKey;
