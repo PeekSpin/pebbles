@@ -20,6 +20,11 @@
 .catalog-editor :is(button, a):focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 .ce-form-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
 .ce-form-fields:disabled { opacity: .78; }
+.ce-preorder-option { display: flex; align-items: center; gap: 12px; margin-top: 20px; padding: 15px; border: 1px solid var(--editor-border); border-radius: 10px; background: #f7f6f0; }
+.catalog-editor .ce-preorder-option input[type=checkbox] { appearance: auto; width: 18px; min-height: 18px; flex: none; margin: 0; accent-color: var(--ink); }
+.ce-preorder-option span, .ce-preorder-option small { display: block; }
+.ce-preorder-option strong { font-size: 13px; }
+.ce-preorder-option small { margin-top: 3px; color: #626960; font-size: 12px; line-height: 1.4; }
 .ce-panel { background: #fffefa; border: 1px solid var(--editor-border); border-radius: var(--editor-radius); box-shadow: 0 5px 18px rgb(24 43 61 / 4%); }
 .ce-info { padding: var(--editor-pad); }
 .ce-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 24px; margin-top: 25px; }

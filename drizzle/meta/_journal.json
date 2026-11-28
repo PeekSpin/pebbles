@@ -64,6 +64,13 @@
       "when": 1795024656900,
       "tag": "0008_colour_inventory",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795889607414,
+      "tag": "0009_add_product_preorder",
+      "breakpoints": true
     }
   ]
 }

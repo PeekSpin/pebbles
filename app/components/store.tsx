@@ -26,6 +26,7 @@ export type Product = {
   description: string;
   colorName?: string | null;
   colorHex?: string | null;
+  isPreorder?: boolean;
   images?: Array<{ id?: string; imageUrl: string; storageKey?: string; altText: string | null; sortOrder: number }>;
   variants?: Array<{ id?: string; size: string; sku: string; stockQuantity: number }>;
   colors?: Array<{
@@ -182,7 +183,7 @@ export function ProductCard({ product, color, size }: { product: Product; color?
   if (swatch && (color || size)) query.set("color", swatch.id);
   if (size && variant) query.set("size", variant.size);
   const href = "/products/" + product.id + (query.size ? "?" + query : "");
-  return <article className="product-card"><div className="product-image product-image-large">{product.badge && <span className="badge">{product.badge}</span>}<Link href={href} className="product-image-link" aria-label={`View ${product.name}`}>{image && <img src={image} alt={product.name} />}</Link><button className="heart" type="button" aria-label={`Save ${product.name}`} onClick={() => undefined}>♡</button></div><div className="product-info"><div><p className="eyebrow">{product.category}</p><Link href={href}><h3>{product.name}</h3></Link></div><strong>{money(price)}</strong></div></article>;
+  return <article className="product-card"><div className="product-image product-image-large">{(product.isPreorder || product.badge) && <span className="badge">{product.isPreorder ? "Pre-order" : product.badge}</span>}<Link href={href} className="product-image-link" aria-label={`View ${product.name}`}>{image && <img src={image} alt={product.name} />}</Link><button className="heart" type="button" aria-label={`Save ${product.name}`} onClick={() => undefined}>♡</button></div><div className="product-info"><div><p className="eyebrow">{product.category}</p><Link href={href}><h3>{product.name}</h3></Link></div><strong>{money(price)}</strong></div></article>;
 }
 
 function PromiseIcon({ type }: { type: "returns" | "shipping" | "payment" }) {
@@ -315,7 +316,55 @@ export function ProductDetail({ product, initialColor, initialSize }: { product:
         ))}
       </div>
     </fieldset>
-  )}{isSaree ? <p className="form-note">One size · {variants[0]?.stockQuantity ?? 0} available</p> : <><div className="size-label"><span>Select size</span></div><div className="size-options" role="radiogroup" aria-label="Available sizes">{variants.map((variant) => <button type="button" role="radio" aria-checked={selectedSize === variant.size} aria-label={`${variant.size}, ${variant.stockQuantity > 0 ? `${variant.stockQuantity} available` : "sold out"}`} key={variant.size} className={`${selectedSize === variant.size ? "active" : ""} ${variant.stockQuantity === 0 ? "sold-out" : ""}`} disabled={variant.stockQuantity === 0} onClick={() => {setSize(variant.size);setAdded(false);}}><strong>{variant.size}</strong><small>{variant.stockQuantity > 0 ? `${variant.stockQuantity} left` : "Sold out"}</small></button>)}</div>{!variants.length && <p className="form-note">Sizes are currently unavailable.</p>}</>}<button className="button dark-button add-button" disabled={!selectedVariant} onClick={addProductToCart}>{added ? "Added to bag ✓" : "Add to bag"} <span>↗</span></button><div className="detail-notes"><p><b>Material</b><span>100% cotton, naturally dyed</span></p><p><b>Care</b><span>Gentle machine wash, dry in shade</span></p><p><b>Delivery</b><span>Ships within 2–4 business days</span></p></div></div></main></StoreShell>;
+  )}
+  {isSaree ? (
+    <p className="form-note">One size · {variants[0]?.stockQuantity ?? 0} available</p>
+  ) : (
+    <>
+      <div className="size-label"><span>Select size</span></div>
+      <div className="size-options" role="radiogroup" aria-label="Available sizes">
+        {variants.map((variant) => (
+          <button
+            type="button"
+            role="radio"
+            aria-checked={selectedSize === variant.size}
+            aria-label={`${variant.size}, ${variant.stockQuantity > 0 ? `${variant.stockQuantity} available` : "sold out"}`}
+            key={variant.size}
+            className={`${selectedSize === variant.size ? "active" : ""} ${variant.stockQuantity === 0 ? "sold-out" : ""}`}
+            disabled={variant.stockQuantity === 0}
+            onClick={() => { setSize(variant.size); setAdded(false); }}
+          >
+            <strong>{variant.size}</strong>
+            <small>{variant.stockQuantity > 0 ? `${variant.stockQuantity} left` : "Sold out"}</small>
+          </button>
+        ))}
+      </div>
+      {!variants.length && <p className="form-note">Sizes are currently unavailable.</p>}
+    </>
+  )}
+  {product.isPreorder && (
+    <section className="preorder-terms" aria-labelledby="preorder-terms-title">
+      <h2 id="preorder-terms-title">⏳ PRE-ORDER TERMS</h2>
+      <p>This saree is made to order with our weavers. Dispatch takes <strong>15–45 days</strong> depending on the weave.</p>
+      <ul>
+        <li>Our team will WhatsApp you the <strong>expected dispatch date within 24 hours</strong> of your order.</li>
+        <li><strong>Cash on delivery booking is available</strong> for pre-orders — pay when your saree arrives.</li>
+        <li><strong>Return and exchange are possible</strong>, as per our return &amp; cancellation guidelines below.</li>
+        <li><strong>Cancellation</strong> is accepted within <strong>24 hours</strong> of placing the order.</li>
+        <li>Colours and motifs may vary slightly from the photos, as every piece is handwoven.</li>
+        <li>If we cannot deliver due to weaver delays, we will offer you a full refund.</li>
+      </ul>
+    </section>
+  )}
+  <button className="button dark-button add-button" disabled={!selectedVariant} onClick={addProductToCart}>
+    {added ? "Added to bag ✓" : product.isPreorder ? "Pre-order" : "Add to bag"} <span>↗</span>
+  </button>
+  <div className="detail-notes">
+    <p><b>Material</b><span>100% cotton, naturally dyed</span></p>
+    <p><b>Care</b><span>Gentle machine wash, dry in shade</span></p>
+    <p><b>Delivery</b><span>Ships within 2–4 business days</span></p>
+  </div>
+  </div></main></StoreShell>;
 }
 
 export function SimpleForm({ title, button, children, note }: { title: ReactNode; button: string; children: ReactNode; note?: string }) {
@@ -348,6 +397,7 @@ type AdminProduct = {
   colorName: string | null;
   colorHex: string | null;
   price: string;
+  isPreorder: boolean;
   variants: Array<{ id?: string; size: string; sku: string; stockQuantity: number; colorName?: string }>;
   images?: Array<{ id?: string; imageUrl: string; storageKey?: string; altText: string | null; sortOrder: number }>;
   primaryImageUrl?: string | null;
@@ -414,7 +464,7 @@ export function ProductAdminTable({ page = 1, initialQuery = "" }: { page?: numb
     setProducts((current) => current.map((item) => item.id === product.id ? { ...item, variants: item.variants.map((variant) => ({ ...variant, stockQuantity: 0 })) } : item));
   };
 
-  return <div className="admin-table-wrap">{error && <p className="form-error">{error}</p>}{message && <p className="form-note" role="status">{message}</p>}<label className="admin-search"><span>Search products</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name or SKU" aria-describedby="product-search-hint" /><small id="product-search-hint">Results update as you type</small></label>{loading ? <div className="table-loading" role="status" aria-live="polite"><div className="loading-mark" aria-hidden="true"><span /><span /><span /></div><p>Loading products...</p></div> : <><table><thead><tr><th>Product</th><th>SKU</th><th>Category</th><th>Color</th><th>Price</th><th>Stock by size</th><th>Action</th></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td><div className="admin-product-cell">{product.primaryImageUrl ? <img className="admin-product-thumb" src={product.primaryImageUrl} alt="" /> : <span className="admin-product-thumb admin-product-thumb-empty">—</span>}<span>{product.name}</span></div></td><td>{product.sku}</td><td>{product.category}</td><td><span className="admin-color-swatch" style={{ backgroundColor: product.colorHex ?? "#D8D6CF" }} aria-label={product.colorName ?? "No color"} />{product.colorName ?? "—"}</td><td>{money(Number(product.price))}</td><td>{product.variants.map((variant) => `${variant.colorName ?? ""} ${variant.size}: ${variant.stockQuantity}`).join(" · ") || "—"}</td><td><div className="admin-product-actions"><Link className="table-action table-action-edit" href={`/admin/products/${product.id}/edit`}>Edit</Link><button className="table-action" type="button" disabled={!product.variants.some((variant) => variant.stockQuantity > 0)} onClick={() => void stockOut(product)}>Stock out</button><button className="table-action table-action-delete" type="button" onClick={() => void remove(product.id)}>Delete</button></div></td></tr>)}</tbody></table>{!products.length && <p className="empty-state">{debouncedQuery ? "No products match your search." : "No products yet."}</p>}{products.length > 0 && totalPages > 1 && <nav className="pagination" aria-label="Product pages"><Link className={page === 1 && !debouncedQuery ? "disabled" : ""} href={pageHref(Math.max(1, (debouncedQuery ? 1 : page) - 1))}>Previous</Link>{Array.from({ length: totalPages }, (_, index) => index + 1).map((number) => <Link className={number === (debouncedQuery ? 1 : page) ? "active" : ""} href={pageHref(number)} key={number}>{number}</Link>)}<Link className={page === totalPages && !debouncedQuery ? "disabled" : ""} href={pageHref(Math.min(totalPages, (debouncedQuery ? 1 : page) + 1))}>Next</Link></nav>}</>}</div>;
+  return <div className="admin-table-wrap">{error && <p className="form-error">{error}</p>}{message && <p className="form-note" role="status">{message}</p>}<label className="admin-search"><span>Search products</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name or SKU" aria-describedby="product-search-hint" /><small id="product-search-hint">Results update as you type</small></label>{loading ? <div className="table-loading" role="status" aria-live="polite"><div className="loading-mark" aria-hidden="true"><span /><span /><span /></div><p>Loading products...</p></div> : <><table><thead><tr><th>Product</th><th>SKU</th><th>Category</th><th>Color</th><th>Price</th><th>Stock by size</th><th>Action</th></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td><div className="admin-product-cell">{product.primaryImageUrl ? <img className="admin-product-thumb" src={product.primaryImageUrl} alt="" /> : <span className="admin-product-thumb admin-product-thumb-empty">—</span>}<span>{product.name}{product.isPreorder && <small className="admin-preorder-label">Pre-order</small>}</span></div></td><td>{product.sku}</td><td>{product.category}</td><td><span className="admin-color-swatch" style={{ backgroundColor: product.colorHex ?? "#D8D6CF" }} aria-label={product.colorName ?? "No color"} />{product.colorName ?? "—"}</td><td>{money(Number(product.price))}</td><td>{product.variants.map((variant) => `${variant.colorName ?? ""} ${variant.size}: ${variant.stockQuantity}`).join(" · ") || "—"}</td><td><div className="admin-product-actions"><Link className="table-action table-action-edit" href={`/admin/products/${product.id}/edit`}>Edit</Link><button className="table-action" type="button" disabled={!product.variants.some((variant) => variant.stockQuantity > 0)} onClick={() => void stockOut(product)}>Stock out</button><button className="table-action table-action-delete" type="button" onClick={() => void remove(product.id)}>Delete</button></div></td></tr>)}</tbody></table>{!products.length && <p className="empty-state">{debouncedQuery ? "No products match your search." : "No products yet."}</p>}{products.length > 0 && totalPages > 1 && <nav className="pagination" aria-label="Product pages"><Link className={page === 1 && !debouncedQuery ? "disabled" : ""} href={pageHref(Math.max(1, (debouncedQuery ? 1 : page) - 1))}>Previous</Link>{Array.from({ length: totalPages }, (_, index) => index + 1).map((number) => <Link className={number === (debouncedQuery ? 1 : page) ? "active" : ""} href={pageHref(number)} key={number}>{number}</Link>)}<Link className={page === totalPages && !debouncedQuery ? "disabled" : ""} href={pageHref(Math.min(totalPages, (debouncedQuery ? 1 : page) + 1))}>Next</Link></nav>}</>}</div>;
 }
 
 type AdminOrder = {

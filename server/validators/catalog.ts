@@ -67,6 +67,9 @@ export function parseVariants(raw: unknown) {
   return variants;
 }
 export function parseBase(form: FormData) {
+  const isPreorder = form.get("isPreorder");
+  if (isPreorder !== null && isPreorder !== "true" && isPreorder !== "false")
+    throw new InputError("Invalid preorder option");
   return {
     sku: field(form.get("sku"), "product SKU", 100),
     name: field(form.get("name"), "product name", 255),
@@ -75,6 +78,7 @@ export function parseBase(form: FormData) {
       field(form.get("category"), "category", 100),
     ),
     price: amount(form.get("price")),
+    isPreorder: isPreorder === "true",
   };
 }
 export type BaseInput = ReturnType<typeof parseBase>;

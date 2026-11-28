@@ -15,7 +15,7 @@ type SavedColor = {
 };
 export type BaseFields = { name: string; sku: string; price: string; category: string; description: string };
 export type EditableProduct = Omit<BaseFields, "category"> & {
-  id: string; revision: number; category: string | null; colors: SavedColor[];
+  id: string; revision: number; category: string | null; isPreorder: boolean; colors: SavedColor[];
 };
 export type GalleryItem =
   | { key: string; saved: SavedImage; file?: never }
@@ -86,9 +86,10 @@ export function editorErrors(fields: BaseFields, colors: EditorColor[]) {
   return errors;
 }
 
-export function productRequest(fields: BaseFields, colors: EditorColor[], revision?: number) {
+export function productRequest(fields: BaseFields, colors: EditorColor[], revision: number | undefined, isPreorder: boolean) {
   const form = new FormData();
   for (const [key, value] of Object.entries(fields)) form.set(key, value.trim());
+  form.set("isPreorder", String(isPreorder));
   const payload = colors.filter(c => c.active).map((color, index) => {
     const retained = color.gallery.flatMap(item => item.saved ? [{ id: item.saved.id }] : []);
     let savedIndex = 0;

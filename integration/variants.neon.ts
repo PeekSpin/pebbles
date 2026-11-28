@@ -154,6 +154,7 @@ test("Neon variant migration, catalogue, reservations and captures", async (t) =
     category: "Tops",
     sku: "P",
     price: "10.00",
+    isPreorder: false,
   };
   const redInput = {
     ...red,

@@ -92,6 +92,7 @@ export function ProductForm({ title, button, product }: {title:string; button:st
   }));
   const [colors, setColors] = useState<EditorColor[]>(() => product?.colors.length
     ? product.colors.map(c => editorColor(c.id, c)) : [editorColor("first-colour")]);
+  const [isPreorder, setIsPreorder] = useState(product?.isPreorder ?? false);
   const [expanded, setExpanded] = useState<string[]>(() => [colors[0].key]);
   const [touched, setTouched] = useState<Record<string,boolean>>({});
   const [attempted, setAttempted] = useState(false);
@@ -131,7 +132,7 @@ export function ProductForm({ title, button, product }: {title:string; button:st
     setPercent(null);
     try {
       await saveForm("/api/admin/products"+(product ? "/"+product.id : ""), product ? "PATCH" : "POST",
-        productRequest(fields, colors, product?.revision), setPercent);
+        productRequest(fields, colors, product?.revision, isPreorder), setPercent);
       window.location.assign("/admin/products?saved="+(product ? "updated" : "created"));
     } catch (error) {
       setServerError(error instanceof Error ? error.message : "Unable to save product.");
@@ -172,6 +173,10 @@ export function ProductForm({ title, button, product }: {title:string; button:st
               </label>;
             })}
           </div>
+          <label className="ce-preorder-option">
+            <input type="checkbox" checked={isPreorder} onChange={event => setIsPreorder(event.target.checked)} />
+            <span><strong>Preorder</strong><small>Show preorder messaging and terms on the storefront.</small></span>
+          </label>
         </section>
         <section className="ce-colours" aria-labelledby="ce-colours-title">
           <div className="ce-section-heading"><h2 id="ce-colours-title">Colour variants</h2>

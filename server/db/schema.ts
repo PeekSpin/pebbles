@@ -51,6 +51,7 @@ export const products = pgTable(
     category: varchar("category", { length: 100 }),
     colorName: varchar("color_name", { length: 100 }),
     colorHex: varchar("color_hex", { length: 7 }),
+    isPreorder: boolean("is_preorder").default(false).notNull(),
     revision: integer("revision").default(0).notNull(),
     price: numeric("price", { precision: 12, scale: 2 }).notNull(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
