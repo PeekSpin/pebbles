@@ -13,11 +13,8 @@ let storage: { client: S3Client; bucket: string; endpointHost: string } | undefi
 function getStorage() {
   if (storage) return storage;
   const bucket = environmentValue("S3_BUCKET_NAME") ?? "";
-  console.log("Neon Object Storage bucket: %s", bucket);
   const region = environmentValue("AWS_REGION");
-  console.log("Neon Object Storage region: %s", region);
   const endpoint = environmentValue("AWS_ENDPOINT_URL_S3") ?? "";
-  console.log("Neon Object Storage endpoint: %s", endpoint);
   const s3AccessKey = environmentValue("S3_ACCESS_KEY_ID") ?? "";
   const s3SecretKey = environmentValue("S3_SECRET_ACCESS_KEY") ?? "";
   const awsAccessKey = environmentValue("AWS_ACCESS_KEY_ID") ?? "";
@@ -26,8 +23,6 @@ function getStorage() {
   const useS3Keys = Boolean(s3AccessKey && s3SecretKey);
   const accessKeyId = useS3Keys ? s3AccessKey : awsAccessKey;
   const secretAccessKey = useS3Keys ? s3SecretKey : awsSecretKey;
-  console.log("Neon Object Storage access key: %s", accessKeyId ? "set" : "not set");
-  console.log("Neon Object Storage secret key: %s", secretAccessKey ? "set" : "not set");
   const missingSettings = Object.entries({
     S3_BUCKET_NAME: bucket,
     AWS_REGION: region,
@@ -48,6 +43,7 @@ function getStorage() {
 
   const client = new S3Client({ region, endpoint, credentials: { accessKeyId, secretAccessKey }, forcePathStyle: true });
   storage = { client, bucket, endpointHost };
+  console.info("[storage] Neon Object Storage client initialized");
   return storage;
 }
 

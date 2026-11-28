@@ -329,3 +329,36 @@ For deeper architecture, data-model, API, and operational details, see
 [TECHNICAL_DOCUMENTATION.md](./TECHNICAL_DOCUMENTATION.md). For the dedicated
 database reference, see
 [DATABASE_DOCUMENTATION.md](./DATABASE_DOCUMENTATION.md).
+
+### GoDaddy managed Node.js hosting
+
+Use the project root containing `package.json` and the lockfile. The managed
+build command is `npm run build` and the serve command is
+`NODE_ENV=production npm start`. GoDaddy supplies `PORT` and Next reads it
+directly. The build dependencies include the tools imported by the repository's
+TypeScript configuration, scripts and tests because GoDaddy installs production
+dependencies before building.
+
+1. In the app dashboard, keep the source on `PeekSpin/pebbles`, branch `main`.
+   Configure the intended `NEXT_PUBLIC_*` values before building. Next embeds
+   these values in browser bundles. Configure server secrets for the **Published**
+   environment as well as **Preview**. Once the intended commit is on `main`,
+   select **Update Preview**.
+2. In **Deployment Info → Preview**, check the commit and open the preview.
+   The source ZIP or Git checkout supplies `public/`. The built release needs
+   `.next/BUILD_ID`, `.next/server/`, `.next/static/`, Next's generated
+   manifests, `public/`, `node_modules/`, and the project files including
+   `scripts/check-production-build.cjs`. GoDaddy's runtime logs should show
+   that the preview dependencies and build output were carried into the release.
+3. When ready to release, use **Publish to Live** and open **Deployment Info →
+   Published → View logs**. Look for `[startup]`, the Next build ID, the assigned
+   port and `Ready`. Check the homepage, `/images/pebbles-mark-black-transparent.svg`
+   and a `/_next/static/` asset referenced by that page. A later **Restart
+   Published App** should report the same build ID without compiling. If the
+   release is missing build output, inspect preview build and archive promotion.
+4. If a published static asset still returns 503 after `Ready`, record the UTC
+   time and the response's `x-airo-supervisor-request-id`. Ask GoDaddy to check
+   the routed instance, target port, health probe result and any process exit
+   or memory-limit event for that request.
+
+[GoDaddy Node.js app requirements](https://developer.godaddy.com/en/docs/api-users/hosting/app-requirements)

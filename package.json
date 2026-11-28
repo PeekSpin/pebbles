@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next build && next start",
+    "prestart": "node scripts/check-production-build.cjs",
+    "start": "next start",
     "lint": "next lint",
     "test": "tsx --test tests/*.test.ts",
     "test:neon": "tsx --test integration/variants.neon.ts",
@@ -20,6 +21,11 @@
     "@aws-sdk/s3-request-presigner": "^3.1155.0",
     "@clerk/nextjs": "^6.39.8",
     "@neondatabase/serverless": "^1.2.0",
+    "@types/node": "^20.17.10",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "dotenv": "^18.0.8",
+    "drizzle-kit": "^0.31.11",
     "drizzle-orm": "^0.45.4",
     "gsap": "^3.15.1",
     "next": "^14.2.32",
@@ -27,15 +33,10 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "server-only": "^0.0.1",
-    "svix": "^2.8.0"
+    "svix": "^2.8.0",
+    "typescript": "^5.7.2"
   },
   "devDependencies": {
-    "@types/node": "^20.17.10",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "dotenv": "^18.0.8",
-    "drizzle-kit": "^0.31.11",
-    "tsx": "^4.23.15",
-    "typescript": "^5.7.2"
+    "tsx": "^4.23.15"
   }
 }
