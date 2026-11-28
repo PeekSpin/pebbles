@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { db } from "../../../../server/db";
+import { getDb } from "../../../../server/db";
 import {
   products,
   productColors,
@@ -12,7 +12,7 @@ import { InputError } from "../../../../server/validators/catalog";
 export async function POST(request: Request) {
   try {
     const lines = checkoutLines((await request.json()).items);
-    const rows = await db
+    const rows = await getDb()
       .select({
         variantId: v.id,
         productId: products.id,

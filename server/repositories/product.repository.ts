@@ -4,7 +4,7 @@ import { and, asc, count, getTableColumns, desc, eq, gte, inArray, isNull, lte, 
 import { unstable_noStore as noStore } from "next/cache";
 
 import { availableStock } from "./inventory";
-import { db } from "../db";
+import { getDb } from "../db";
 import { orderAddresses, orderItems, orders, paymentReviews, productColors, productImages, products, productVariants, users } from "../db/schema";
 import { getProductImageUrl } from "../storage";
 import { countProductCategories, normalizeProductCategory, productCategoryFilterValues } from "../../app/lib/product-categories";
@@ -20,11 +20,11 @@ async function previewImageUrl(image: typeof productImages.$inferSelect) {
 
 async function catalogDetails(productId: string, storefront: boolean) {
   const [colors, variants, images] = await Promise.all([
-    db.select().from(productColors).where(and(eq(productColors.productId, productId), isNull(productColors.deletedAt)))
+    getDb().select().from(productColors).where(and(eq(productColors.productId, productId), isNull(productColors.deletedAt)))
       .orderBy(desc(productColors.isDefault), asc(productColors.sortOrder)),
-    db.select({ ...getTableColumns(productVariants), ...(storefront ? { stockQuantity: availableStock } : {}) })
+    getDb().select({ ...getTableColumns(productVariants), ...(storefront ? { stockQuantity: availableStock } : {}) })
       .from(productVariants).where(and(eq(productVariants.productId, productId), isNull(productVariants.deletedAt))).orderBy(asc(productVariants.size)),
-    db.select().from(productImages).where(and(eq(productImages.productId, productId), isNull(productImages.deletedAt))).orderBy(asc(productImages.sortOrder))
+    getDb().select().from(productImages).where(and(eq(productImages.productId, productId), isNull(productImages.deletedAt))).orderBy(asc(productImages.sortOrder))
   ]);
   const gallery = await Promise.all(images.map(async image => {
     if (!storefront) return image;
@@ -66,8 +66,8 @@ export async function listStoreProducts(options: { category?: string; color?: st
   if (options.query) filters.push(sql`lower(${products.name}) like ${`%${options.query.toLowerCase()}%`}`);
   const where = filters.length ? and(...filters) : undefined;
   const [rows, [{ total }]] = await Promise.all([
-    db.select().from(products).where(where).orderBy(desc(products.createdAt), desc(products.updatedAt), desc(products.id)).limit(pageSize).offset((page - 1) * pageSize),
-    db.select({ total: count() }).from(products).where(where)
+    getDb().select().from(products).where(where).orderBy(desc(products.createdAt), desc(products.updatedAt), desc(products.id)).limit(pageSize).offset((page - 1) * pageSize),
+    getDb().select({ total: count() }).from(products).where(where)
   ]);
   return {
     products: await Promise.all(rows.map(withImageUrls)),
@@ -79,7 +79,7 @@ export async function listStoreProducts(options: { category?: string; color?: st
 }
 
 export async function listProductColors() {
-  return db.select({ name: productColors.name, hex: productColors.hex }).from(productColors)
+  return getDb().select({ name: productColors.name, hex: productColors.hex }).from(productColors)
     .innerJoin(products, eq(productColors.productId, products.id))
     .where(and(isNull(products.deletedAt), isNull(productColors.deletedAt)))
     .groupBy(productColors.name, productColors.hex).orderBy(asc(productColors.name));
@@ -88,7 +88,7 @@ export async function listProductColors() {
 export async function findStoreProduct(id: string) {
   noStore();
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) return null;
-  const [product] = await db.select().from(products).where(and(eq(products.id, id), isNull(products.deletedAt))).limit(1);
+  const [product] = await getDb().select().from(products).where(and(eq(products.id, id), isNull(products.deletedAt))).limit(1);
   return product ? withImageUrls(product) : null;
 }
 
@@ -113,8 +113,8 @@ export async function listProducts(options: { page?: number; pageSize?: number; 
       : undefined
   );
   const [productRows, [{ total }]] = await Promise.all([
-    db.select().from(products).where(where).orderBy(desc(products.createdAt), desc(products.updatedAt), desc(products.id)).limit(pageSize).offset((page - 1) * pageSize),
-    db.select({ total: count() }).from(products).where(where)
+    getDb().select().from(products).where(where).orderBy(desc(products.createdAt), desc(products.updatedAt), desc(products.id)).limit(pageSize).offset((page - 1) * pageSize),
+    getDb().select({ total: count() }).from(products).where(where)
   ]);
   return {
     products: await Promise.all(productRows.map(async (product) => {
@@ -132,7 +132,7 @@ export async function listProducts(options: { page?: number; pageSize?: number; 
 }
 
 export async function listProductCategories() {
-  const rows = await db
+  const rows = await getDb()
     .select({ category: products.category })
     .from(products)
     .where(and(isNull(products.deletedAt), sql`${products.category} is not null and trim(${products.category}) <> ''`));
@@ -140,7 +140,7 @@ export async function listProductCategories() {
 }
 
 export async function findProduct(id: string) {
-  const [product] = await db.select().from(products).where(and(eq(products.id, id), isNull(products.deletedAt))).limit(1);
+  const [product] = await getDb().select().from(products).where(and(eq(products.id, id), isNull(products.deletedAt))).limit(1);
   if (!product) return null;
   const colors = await catalogDetails(id, false);
   return { ...product, category: normalizeProductCategory(product.category) || null, colors,
@@ -148,17 +148,17 @@ export async function findProduct(id: string) {
 }
 
 export async function findOrderForUser(orderId: string, userId: string) {
-  const [order] = await db.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.userId, userId))).limit(1);
+  const [order] = await getDb().select().from(orders).where(and(eq(orders.id, orderId), eq(orders.userId, userId))).limit(1);
   return order ?? null;
 }
 
 export async function listUserOrders(userId: string, options: { page?: number; pageSize?: number } = {}) {
   const pageSize = options.pageSize ?? 10;
   const requestedPage = Math.max(1, options.page ?? 1);
-  const [{ total }] = await db.select({ total: count() }).from(orders).where(eq(orders.userId, userId));
+  const [{ total }] = await getDb().select({ total: count() }).from(orders).where(eq(orders.userId, userId));
   const totalPages = Math.max(1, Math.ceil(Number(total) / pageSize));
   const page = Math.min(requestedPage, totalPages);
-  const rows = await db
+  const rows = await getDb()
     .select()
     .from(orders)
     .where(eq(orders.userId, userId))
@@ -168,7 +168,7 @@ export async function listUserOrders(userId: string, options: { page?: number; p
   return {
     orders: await Promise.all(rows.map(async (order) => ({
     ...order,
-    items: await db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
+    items: await getDb().select().from(orderItems).where(eq(orderItems.orderId, order.id))
     }))),
     total: Number(total),
     page,
@@ -181,18 +181,18 @@ export async function findUserOrder(orderId: string, userId: string) {
   const order = await findOrderForUser(orderId, userId);
   if (!order) return null;
   const [items] = await Promise.all([
-    db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
+    getDb().select().from(orderItems).where(eq(orderItems.orderId, order.id))
   ]);
-  const [address] = await db.select().from(orderAddresses).where(eq(orderAddresses.orderId, order.id)).limit(1);
-  const reviews = await db.select({ reason: paymentReviews.reason }).from(paymentReviews).where(eq(paymentReviews.orderId, order.id));
+  const [address] = await getDb().select().from(orderAddresses).where(eq(orderAddresses.orderId, order.id)).limit(1);
+  const reviews = await getDb().select({ reason: paymentReviews.reason }).from(paymentReviews).where(eq(paymentReviews.orderId, order.id));
   return { ...order, items, reviews, address: address ?? null };
 }
 
 export async function listAllOrders() {
-  const rows = await db.select().from(orders).orderBy(desc(orders.createdAt));
+  const rows = await getDb().select().from(orders).orderBy(desc(orders.createdAt));
   return Promise.all(rows.map(async (order) => ({
     ...order,
-    items: await db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
+    items: await getDb().select().from(orderItems).where(eq(orderItems.orderId, order.id))
   })));
 }
 
@@ -207,13 +207,13 @@ export async function listAdminOrders(filters: { status?: AdminOrderStatus; from
   if (filters.to) conditions.push(lte(orders.createdAt, new Date(`${filters.to}T23:59:59.999Z`)));
   const where = conditions.length ? and(...conditions) : undefined;
   const [rows, [{ total }]] = await Promise.all([
-    db.select().from(orders).where(where).orderBy(desc(orders.createdAt)).limit(pageSize).offset((page - 1) * pageSize),
-    db.select({ total: count() }).from(orders).where(where)
+    getDb().select().from(orders).where(where).orderBy(desc(orders.createdAt)).limit(pageSize).offset((page - 1) * pageSize),
+    getDb().select({ total: count() }).from(orders).where(where)
   ]);
   return {
     orders: await Promise.all(rows.map(async (order) => ({
     ...order,
-    items: await db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
+    items: await getDb().select().from(orderItems).where(eq(orderItems.orderId, order.id))
     }))),
     total: Number(total),
     page,
@@ -223,27 +223,27 @@ export async function listAdminOrders(filters: { status?: AdminOrderStatus; from
 }
 
 export async function findAdminOrder(orderId: string) {
-  const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+  const [order] = await getDb().select().from(orders).where(eq(orders.id, orderId)).limit(1);
   if (!order) return null;
   const [items, address, user] = await Promise.all([
-    db.select().from(orderItems).where(eq(orderItems.orderId, order.id)),
-    db.select().from(orderAddresses).where(eq(orderAddresses.orderId, order.id)).limit(1),
-    db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, order.userId)).limit(1)
+    getDb().select().from(orderItems).where(eq(orderItems.orderId, order.id)),
+    getDb().select().from(orderAddresses).where(eq(orderAddresses.orderId, order.id)).limit(1),
+    getDb().select({ name: users.name, email: users.email }).from(users).where(eq(users.id, order.userId)).limit(1)
   ]);
-  const reviews = await db.select().from(paymentReviews).where(eq(paymentReviews.orderId, order.id));
+  const reviews = await getDb().select().from(paymentReviews).where(eq(paymentReviews.orderId, order.id));
   return { ...order, items, reviews, address: address[0] ?? null, customer: user[0] ?? null };
 }
 
 export async function getAdminDashboard() {
   const [sales, orderCount, productCount, customerCount, lowStockCount] = await Promise.all([
-    db.select({ total: sum(orders.totalAmount) }).from(orders).where(inArray(orders.status, ["confirmed", "shipped", "delivered"])),
-    db.select({ total: count() }).from(orders),
-    db.select({ total: count() }).from(products).where(isNull(products.deletedAt)),
-    db.select({ total: count() }).from(users).where(and(eq(users.role, "customer"), isNull(users.deletedAt))),
-    db.select({ total: count() }).from(productVariants).innerJoin(products, eq(products.id, productVariants.productId)).where(and(isNull(products.deletedAt), isNull(productVariants.deletedAt), sql`${availableStock} <= 5`))
+    getDb().select({ total: sum(orders.totalAmount) }).from(orders).where(inArray(orders.status, ["confirmed", "shipped", "delivered"])),
+    getDb().select({ total: count() }).from(orders),
+    getDb().select({ total: count() }).from(products).where(isNull(products.deletedAt)),
+    getDb().select({ total: count() }).from(users).where(and(eq(users.role, "customer"), isNull(users.deletedAt))),
+    getDb().select({ total: count() }).from(productVariants).innerJoin(products, eq(products.id, productVariants.productId)).where(and(isNull(products.deletedAt), isNull(productVariants.deletedAt), sql`${availableStock} <= 5`))
   ]);
   const recentOrders = await listAdminOrders({ page: 1, pageSize: 5 });
-  const topProducts = await db
+  const topProducts = await getDb()
     .select({ name: orderItems.productName, sold: sum(orderItems.quantity) })
     .from(orderItems)
     .innerJoin(orders, eq(orderItems.orderId, orders.id))
